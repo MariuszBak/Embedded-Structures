@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>IoT Dev Tools</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:     #0a0c0f;
+  --bg2:    #0f1318;
+  --bg3:    #141920;
+  --bg4:    #1a2230;
+  --border: #1e2d40;
+  --border2:#2a3f58;
+  --accent: #00d4ff;
+  --accent2:#0088cc;
+  --accent3:#004d88;
+  --green:  #00ff88;
+  --yellow: #ffcc00;
+  --text:   #c8dde8;
+  --text2:  #7a9ab0;
+  --text3:  #4a6880;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── GRID BACKGROUND ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* ── GLOW ORBS ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 50%, rgba(0,136,204,.08) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 60% at 80% 30%, rgba(0,255,136,.05) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 60% 80%, rgba(0,212,255,.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── SCAN LINE ── */
+@keyframes scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+.scanline {
+  position: fixed;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,212,255,.15), transparent);
+  animation: scan 6s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── MAIN CONTENT ── */
+main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 48px;
+  padding: 40px 24px;
+  max-width: 700px;
+  width: 100%;
+}
+
+/* ── HEADER ── */
+header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-line {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo-bracket {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 28px;
+  color: var(--accent3);
+  opacity: .7;
+}
+
+h1 {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(22px, 5vw, 36px);
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: var(--accent);
+  text-shadow: 0 0 30px rgba(0,212,255,.3);
+  text-transform: uppercase;
+}
+
+h1 em {
+  color: var(--green);
+  font-style: normal;
+  text-shadow: 0 0 20px rgba(0,255,136,.3);
+}
+
+.subtitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: var(--text3);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.subtitle span {
+  color: var(--accent2);
+}
+
+/* ── STATUS LINE ── */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: 1px;
+}
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: blink 2s infinite;
+}
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── CARDS ── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s;
+  text-decoration: none;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  transition: opacity .2s;
+}
+
+.card:hover {
+  border-color: var(--accent2);
+  box-shadow: 0 0 30px rgba(0,136,204,.12), inset 0 0 30px rgba(0,136,204,.04);
+}
+
+.card:hover::before { opacity: 1; }
+
+.card-icon {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 32px;
+  color: var(--accent);
+  opacity: .7;
+  line-height: 1;
+  transition: opacity .2s;
+}
+
+.card:hover .card-icon { opacity: 1; }
+
+.card-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.card-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.7;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.tag {
+  font-size: 9px;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border: 1px solid var(--border2);
+  color: var(--text3);
+  background: var(--bg3);
+}
+
+.card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent3);
+  border: 1px solid var(--accent2);
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 8px 18px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  transition: all .15s;
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.card-btn:hover {
+  background: var(--accent2);
+  box-shadow: 0 0 16px rgba(0,136,204,.3);
+}
+
+.card-btn .arrow {
+  transition: transform .15s;
+}
+.card:hover .card-btn .arrow { transform: translateX(4px); }
+
+/* font card accent */
+.card.font-card { border-left: 2px solid var(--accent3); }
+.card.font-card .card-icon { color: var(--accent); }
+
+/* image card accent */
+.card.img-card { border-left: 2px solid #004433; }
+.card.img-card .card-icon { color: var(--green); }
+.card.img-card .card-name { color: var(--green); }
+.card.img-card::before { background: linear-gradient(90deg, transparent, var(--green), transparent); }
+.card.img-card:hover { border-color: #00aa55; box-shadow: 0 0 30px rgba(0,255,136,.1), inset 0 0 30px rgba(0,255,136,.03); }
+.card.img-card .card-btn { background: #003322; border-color: #00aa55; color: var(--green); }
+.card.img-card .card-btn:hover { background: #00aa55; color: #001a11; box-shadow: 0 0 16px rgba(0,255,136,.25); }
+
+/* ── PIXEL PREVIEW ── */
+.pixel-preview {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+
+.px-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.px {
+  width: 5px;
+  height: 5px;
+  background: var(--border);
+}
+.px.on { background: var(--accent); box-shadow: 0 0 4px rgba(0,212,255,.5); }
+.px.on-g { background: var(--green); box-shadow: 0 0 4px rgba(0,255,136,.5); }
+
+/* ── FOOTER ── */
+footer {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 2px;
+  text-align: center;
+  line-height: 1.8;
+}
+
+footer span { color: var(--accent2); }
+
+/* ── CORNER DECORATIONS ── */
+.corner {
+  position: fixed;
+  width: 40px; height: 40px;
+  opacity: .25;
+}
+.corner.tl { top:16px; left:16px; border-top:1px solid var(--accent); border-left:1px solid var(--accent); }
+.corner.tr { top:16px; right:16px; border-top:1px solid var(--accent); border-right:1px solid var(--accent); }
+.corner.bl { bottom:16px; left:16px; border-bottom:1px solid var(--accent); border-left:1px solid var(--accent); }
+.corner.br { bottom:16px; right:16px; border-bottom:1px solid var(--accent); border-right:1px solid var(--accent); }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+header  { animation: fadeUp .6s ease both; }
+.cards  { animation: fadeUp .6s .15s ease both; }
+footer  { animation: fadeUp .6s .3s ease both; }
+</style>
+</head>
+<body>
+
+<div class="scanline"></div>
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<main>
+
+  <header>
+    <div class="logo-line">
+      <span class="logo-bracket">[</span>
+      <h1>IoT <em>DEV</em> TOOLS</h1>
+      <span class="logo-bracket">]</span>
+    </div>
+    <p class="subtitle">Narzędzia do edycji zasobów bitmapowych dla systemów <span>embedded</span></p>
+    <div class="status-row">
+      <div class="status-dot"></div>
+      column-major &nbsp;·&nbsp; LSB=top &nbsp;·&nbsp; uint8_t C arrays
+    </div>
+  </header>
+
+  <div class="cards">
+
+    <!-- FONT EDITOR -->
+    <a class="card font-card" href="IoT-Font-Editor.html">
+      <div class="pixel-preview">
+        <!-- mini pixel letter 'F' -->
+        <div class="px-row"><div class="px on"></div><div class="px on"></div><div class="px on"></div><div class="px on"></div><div class="px on"></div></div>
+        <div class="px-row"><div class="px on"></div><div class="px on"></div><div class="px"></div><div class="px"></div><div class="px"></div></div>
+        <div class="px-row"><div class="px on"></div><div class="px on"></div><div class="px on"></div><div class="px"></div><div class="px"></div></div>
+        <div class="px-row"><div class="px on"></div><div class="px"></div><div class="px"></div><div class="px"></div><div class="px"></div></div>
+        <div class="px-row"><div class="px on"></div><div class="px"></div><div class="px"></div><div class="px"></div><div class="px"></div></div>
+      </div>
+      <div class="card-name">IoT Font Editor</div>
+      <div class="card-desc">
+        Edytor czcionek bitmapowych dla wyświetlaczy embedded.
+        Obsługa wielu fontów w jednym pliku, edytor ASCII, podgląd na żywo,
+        eksport struktur C.
+      </div>
+      <div class="card-tags">
+        <span class="tag">5×7</span>
+        <span class="tag">8×16</span>
+        <span class="tag">ASCII 0x20–0x7F</span>
+        <span class="tag">multi-font</span>
+      </div>
+      <span class="card-btn">OTWÓRZ <span class="arrow">→</span></span>
+    </a>
+
+    <!-- IMAGE EDITOR -->
+    <a class="card img-card" href="IoT-Image-Editor.html">
+      <div class="pixel-preview">
+        <!-- mini pixel circle -->
+        <div class="px-row"><div class="px"></div><div class="px on-g"></div><div class="px on-g"></div><div class="px on-g"></div><div class="px"></div></div>
+        <div class="px-row"><div class="px on-g"></div><div class="px"></div><div class="px"></div><div class="px"></div><div class="px on-g"></div></div>
+        <div class="px-row"><div class="px on-g"></div><div class="px"></div><div class="px"></div><div class="px"></div><div class="px on-g"></div></div>
+        <div class="px-row"><div class="px on-g"></div><div class="px"></div><div class="px"></div><div class="px"></div><div class="px on-g"></div></div>
+        <div class="px-row"><div class="px"></div><div class="px on-g"></div><div class="px on-g"></div><div class="px on-g"></div><div class="px"></div></div>
+      </div>
+      <div class="card-name">IoT Image Editor</div>
+      <div class="card-desc">
+        Edytor obrazów monochromatycznych dla wyświetlaczy embedded.
+        Import PNG/SVG z auto-konwersją do mono, skalowanie z zachowaniem proporcji,
+        eksport struktur C z nagłówkiem uint16 LE.
+      </div>
+      <div class="card-tags">
+        <span class="tag">mono bitmap</span>
+        <span class="tag">import PNG/SVG</span>
+        <span class="tag">uint16 header</span>
+        <span class="tag">auto-scale</span>
+      </div>
+      <span class="card-btn">OTWÓRZ <span class="arrow">→</span></span>
+    </a>
+
+  </div>
+
+  <footer>
+    <div>column-major · LSB=top · little-endian uint16</div>
+    <div style="margin-top:6px;opacity:.5">
+      format zgodny z <span>sct_font5x7</span> · <span>sct_font8x16</span> · <span>img_com_*</span>
+    </div>
+  </footer>
+
+</main>
+
+</body>
+</html>
