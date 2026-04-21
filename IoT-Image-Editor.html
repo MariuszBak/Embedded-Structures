@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>IoT Image Editor</title>
+<style>
+  #edit-bar {
+    background: var(--bg3);
+    border-top: 2px solid transparent;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    visibility: hidden;
+  }
+  #edit-bar.active { visibility: visible; border-top-color: var(--accent3); }
+  #edit-bar-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    color: var(--yellow);
+    letter-spacing: 2px;
+    flex: 1;
+  }
+  .btn-save {
+    background: #0a2a10;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 5px 16px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all .15s;
+  }
+  .btn-save:hover { background: #0d3d16; }
+  .btn-back {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 5px 16px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all .15s;
+  }
+  .btn-back:hover { background: var(--bg4); border-color: var(--red); color: var(--red); }
+  #pgrid.editing { border-color: var(--yellow); box-shadow: 0 0 12px rgba(255,204,0,.2); }
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&display=swap');
+:root{--bg:#0a0c0f;--bg2:#0f1318;--bg3:#141920;--bg4:#1a2230;--border:#1e2d40;--border2:#2a3f58;--accent:#00d4ff;--accent2:#0088cc;--accent3:#004d88;--green:#00ff88;--red:#ff3344;--yellow:#ffcc00;--text:#c8dde8;--text2:#7a9ab0;--text3:#4a6880;--px-on:#00d4ff;--px-off:#0d1e2a;--px-hov:#004466;--grid-line:#152030;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:14px;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+#hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:6px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;row-gap:4px;}
+#hdr h1{font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:var(--accent);letter-spacing:3px;white-space:nowrap;}
+#hdr h1 em{color:var(--green);font-style:normal;}
+.sep{width:1px;height:26px;background:var(--border);flex-shrink:0;}
+.btn{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:5px 12px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all .15s;}
+.btn:hover{background:var(--bg4);border-color:var(--accent);color:var(--accent);}
+.btn.pri{background:var(--accent3);border-color:var(--accent2);color:var(--accent);}
+.btn.pri:hover{background:var(--accent2);}
+.btn.dng{border-color:#331122;color:var(--red);}
+.btn.dng:hover{background:#220011;border-color:var(--red);}
+#main{display:flex;flex:1;overflow:hidden;min-width:0;}
+#lpanel{width:220px;min-width:200px;flex-shrink:0;background:#111620;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+#cpanel{flex:1;min-width:320px;display:flex;flex-direction:column;overflow:hidden;}
+#divider{width:6px;min-width:6px;flex-shrink:0;background:var(--border2);cursor:col-resize;position:relative;transition:background .15s;z-index:10;}
+#divider::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:40px;background:var(--text3);border-radius:2px;opacity:.5;}
+#divider:hover,#divider.dragging{background:var(--accent3);}
+#divider:hover::after,#divider.dragging::after{background:var(--accent);opacity:1;}
+#rpanel{width:340px;min-width:200px;flex-shrink:0;background:#111620;display:flex;flex-direction:column;overflow:hidden;}
+.phdr{padding:7px 12px;background:var(--bg2);border-bottom:1px solid var(--border);font-family:'Orbitron',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:2px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+#ilist{flex:1;overflow-y:auto;padding:6px;}
+.iitem{background:var(--bg3);border:1px solid var(--border);padding:7px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;position:relative;}
+.iitem:hover{border-color:var(--border2);background:var(--bg4);}
+.iitem.act{border-color:var(--accent);background:linear-gradient(90deg,#001a2a,var(--bg3));}
+.iitem.act::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+.iname{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1px;margin-bottom:3px;word-break:break-all;}
+.imeta{color:var(--text3);font-size:12px;line-height:1.6;}
+.imeta span{color:var(--text2);}
+#ictrl{padding:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
+.clbl{font-family:'Orbitron',monospace;font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;}
+.irow{display:flex;gap:4px;align-items:center;}
+.irow label{font-size:11px;color:var(--text3);width:48px;flex-shrink:0;letter-spacing:1px;text-transform:uppercase;}
+input[type=text],input[type=number]{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;padding:4px 7px;flex:1;min-width:0;}
+input[type=text]:focus,input[type=number]:focus{outline:none;border-color:var(--accent2);}
+input[type=number]{width:64px;flex:none;}
+#earea{flex:1;display:grid;grid-template-columns:1fr 160px;overflow:hidden;min-height:0;}
+#emain{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 18px;gap:10px;overflow:auto;}
+#einfo{font-family:'Orbitron',monospace;font-size:12px;color:var(--accent);letter-spacing:2px;text-align:center;}
+#einfo span{color:var(--yellow);}
+#pgrid{display:grid;gap:2px;background:var(--grid-line);padding:2px;border:1px solid var(--border2);cursor:crosshair;user-select:none;box-shadow:0 0 24px rgba(0,100,150,.1);}
+.px{background:var(--px-off);cursor:crosshair;}
+.px:hover{background:var(--px-hov);}
+.px.on{background:var(--px-on);box-shadow:0 0 4px rgba(0,212,255,.35);}
+.px.on:hover{background:#33eeff;}
+#pclbls{display:flex;gap:2px;margin-bottom:2px;}
+.pxlbl{text-align:center;font-size:9px;color:var(--text3);}
+#pwrap{position:relative;display:inline-block;}
+#prlbls{position:absolute;left:-24px;top:4px;display:flex;flex-direction:column;gap:2px;}
+.pylbl{display:flex;align-items:center;font-size:9px;color:var(--text3);}
+#modindicator{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-family:'Orbitron',monospace;font-size:9px;color:var(--yellow);letter-spacing:2px;white-space:nowrap;}
+#etbar{background:var(--bg2);border-left:1px solid var(--border);padding:7px;display:flex;flex-direction:column;gap:7px;overflow-y:auto;flex-shrink:0;}
+.tsec{border-bottom:1px solid var(--border);padding-bottom:7px;}
+.tsec:last-child{border-bottom:none;}
+.tlbl{font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;font-family:'Orbitron',monospace;}
+.tbtns{display:flex;flex-direction:column;gap:2px;}
+.tbtn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 8px;cursor:pointer;text-align:left;transition:all .12s;}
+.tbtn:hover{background:var(--bg4);border-color:var(--border2);color:var(--text);}
+.tbtn.act{background:var(--accent3);border-color:var(--accent);color:var(--accent);}
+select.tsel{background:var(--bg);border:1px solid var(--border);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:4px;width:100%;margin-bottom:3px;}
+#trow{display:flex;gap:3px;flex-wrap:wrap;}
+.tplbtn{background:var(--bg3);border:1px solid var(--border);color:var(--text3);font-size:11px;padding:3px 7px;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;transition:all .1s;}
+.tplbtn:hover{border-color:var(--accent2);color:var(--accent);background:var(--bg4);}
+#prev{background:var(--bg2);border-top:1px solid var(--border);padding:4px 12px;flex-shrink:0;display:flex;align-items:center;gap:12px;max-height:10vh;overflow:hidden;}
+#prevlbl{font-family:'Orbitron',monospace;font-size:11px;color:var(--text3);letter-spacing:2px;flex-shrink:0;}
+#prevcanv{display:flex;gap:6px;align-items:flex-start;overflow-x:auto;flex:1;max-height:calc(10vh - 8px);}
+  #prevcanv canvas{max-height:calc(10vh - 8px);width:auto;}
+#cchdr{padding:7px 12px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+#cctitle{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;color:var(--green);letter-spacing:2px;}
+#ccarea{flex:1;overflow:auto;padding:10px;font-family:'Share Tech Mono',monospace;font-size:12px;line-height:1.8;white-space:pre-wrap;word-break:break-all;background:var(--bg);color:var(--text2);}
+.ckw{color:#6699ff}.cty{color:#ff9944}.cnm{color:#00ff88}.cnu{color:#00d4ff}.ccm{color:#3a5a70}.cpu{color:#667788}
+.cimg-copybtn{display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border2);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:11px;padding:2px 8px;cursor:pointer;transition:all .15s;vertical-align:middle;margin-bottom:2px;user-select:none;}
+.cimg-copybtn:hover{background:var(--bg4);border-color:var(--accent);color:var(--accent);}
+.cimg-copybtn.copied{border-color:var(--green);color:var(--green);}
+#sbar{background:var(--accent3);border-top:1px solid var(--accent2);padding:4px 14px;font-size:12px;color:var(--accent);display:flex;gap:14px;flex-shrink:0;font-family:'IBM Plex Mono',monospace;flex-wrap:wrap;}
+#sbar .val{color:var(--accent);font-weight:600;}
+@keyframes flash{0%{background:rgba(0,212,255,.08)}100%{background:transparent}}
+.flash{animation:flash .3s ease-out;}
+#modov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+#modov.show{display:flex;}
+#moddlg{background:#111620;border:1px solid var(--border2);padding:20px;min-width:320px;box-shadow:0 0 40px rgba(0,100,150,.25);}
+#moddlg h3{font-family:'Orbitron',monospace;font-size:14px;color:var(--accent);letter-spacing:2px;margin-bottom:14px;}
+.mrow{margin-bottom:9px;}
+.mrow label{display:block;font-size:11px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:1px;}
+.mrow input{width:100%;}
+.mbtns{display:flex;gap:8px;margin-top:14px;justify-content:flex-end;}
+#nosel{display:flex;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:12px;color:var(--text3);font-family:'Orbitron',monospace;font-size:14px;letter-spacing:2px;}
+#nosel .big{font-size:40px;opacity:.2;}
+#show-in-file-btn{background:var(--bg3);border:1px solid var(--border2);color:var(--yellow);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 10px;cursor:pointer;transition:all .15s;}
+#show-in-file-btn:hover{background:var(--bg4);border-color:var(--yellow);}
+@keyframes imgPulse{0%{background:rgba(255,204,0,.35)}60%{background:rgba(255,204,0,.15)}100%{background:transparent}}
+.img-pulse{animation:imgPulse 1.8s ease-out;}
+@media(max-width:1200px){#lpanel{width:200px;min-width:200px;}#rpanel{width:280px;min-width:200px;}}
+@media(max-width:960px){#lpanel{width:180px;min-width:180px;}#cpanel{min-width:260px;}#rpanel{width:240px;min-width:180px;}}
+@media(max-width:700px){#main{flex-direction:column;overflow-y:auto;height:auto;}#lpanel{width:100%;min-width:unset;border-right:none;border-bottom:1px solid var(--border);max-height:200px;}#cpanel{width:100%;min-width:unset;}#divider{display:none;}#rpanel{width:100%;min-width:unset;border-top:1px solid var(--border);max-height:300px;}body{height:auto;overflow-y:auto;}}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <h1>IoT <em>IMAGE</em> EDITOR</h1>
+  <div class="sep"></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <button class="btn pri" onclick="showModal()">+ NEW IMAGE</button>
+    <button class="btn" onclick="doImport()">IMPORT FILE</button>
+    <button class="btn" onclick="doExport()" style="color:var(--green);border-color:#113322">EXPORT FILE</button>
+    <input type="file" id="imp" accept=".h,.c,.txt" style="display:none" onchange="handleImport(event)">
+    <button class="btn" onclick="copyAllC()">COPY C</button>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+    <span style="font-size:13px;color:var(--text3)">IMAGES:<span id="sfcnt" style="color:var(--accent);margin-left:4px">0</span></span>
+    <span style="font-size:13px;color:var(--text3)">ACTIVE:<span id="sfact" style="color:var(--yellow);margin-left:4px">—</span></span>
+  </div>
+</div>
+<div id="main">
+  <div id="lpanel">
+    <div class="phdr">IMAGES<div class="dot"></div></div>
+    <div id="ilist"></div>
+    <div id="ictrl">
+      <div class="clbl">IMAGE SETTINGS</div>
+      <div class="irow"><label>NAME</label><input type="text" id="in" placeholder="img_name" oninput="updateImage()"></div>
+      <div class="irow"><label>W x H</label>
+        <input type="number" id="iw" min="1" max="256" value="20" oninput="updateImage()">
+        <span style="color:var(--text3);padding:0 3px">x</span>
+        <input type="number" id="ih" min="1" max="256" value="8" oninput="updateImage()">
+      </div>
+      <div style="display:flex;gap:4px;margin-top:3px">
+        <button class="btn dng" style="flex:1;font-size:11px" onclick="delImage()">DELETE</button>
+        <button class="btn" style="flex:1;font-size:11px" onclick="cloneImage()">CLONE</button>
+      </div>
+    </div>
+  </div>
+  <div id="cpanel">
+    <div id="earea">
+      <div id="emain">
+        <div id="nosel"><div class="big">&#9633;</div><div>NO IMAGE SELECTED</div><div style="font-size:11px;opacity:.5">CREATE A NEW IMAGE TO BEGIN</div></div>
+      </div>
+      <div id="etbar">
+        <div class="tsec">
+          <div class="tlbl">DRAW MODE</div>
+          <div class="tbtns">
+            <button class="tbtn act" id="td" onclick="setTool('draw')">DRAW [D]</button>
+            <button class="tbtn" id="te" onclick="setTool('erase')">ERASE [E]</button>
+            <button class="tbtn" id="tt" onclick="setTool('toggle')">TOGGLE [T]</button>
+          </div>
+        </div>
+        <div class="tsec">
+          <div class="tlbl">OPERATIONS</div>
+          <div class="tbtns">
+            <button class="tbtn" onclick="opClear()">CLEAR [Del]</button>
+            <button class="tbtn" onclick="opFill()">FILL ALL</button>
+            <button class="tbtn" onclick="opInvert()">INVERT [I]</button>
+            <button class="tbtn" onclick="opShift('L')">SHIFT LEFT</button>
+            <button class="tbtn" onclick="opShift('R')">SHIFT RIGHT</button>
+            <button class="tbtn" onclick="opShift('U')">SHIFT UP</button>
+            <button class="tbtn" onclick="opShift('D')">SHIFT DOWN</button>
+            <button class="tbtn" onclick="opMirror('H')">MIRROR H</button>
+            <button class="tbtn" onclick="opMirror('V')">MIRROR V</button>
+          </div>
+        </div>
+        <div class="tsec">
+          <div class="tlbl">TEMPLATES</div>
+          <div id="trow">
+            <button class="tplbtn" onclick="applyTpl('box')">BOX</button>
+            <button class="tplbtn" onclick="applyTpl('cross')">CROSS</button>
+            <button class="tplbtn" onclick="applyTpl('diag')">DIAG</button>
+            <button class="tplbtn" onclick="applyTpl('circle')">CIRCLE</button>
+            <button class="tplbtn" onclick="applyTpl('check')">CHECK</button>
+            <button class="tplbtn" onclick="applyTpl('vlines')">VLINES</button>
+            <button class="tplbtn" onclick="applyTpl('hlines')">HLINES</button>
+            <button class="tplbtn" onclick="applyTpl('fillall')">FILL</button>
+          </div>
+        </div>
+        <div class="tsec">
+          <div class="tlbl">IMPORT IMAGE</div>
+          <div class="tbtns">
+            <button class="tbtn" onclick="importPng()">&#128247; FROM IMAGE FILE</button>
+          </div>
+          <input type="file" id="png-input" accept="image/png,image/jpeg,image/bmp,image/gif,image/webp,image/svg+xml" style="display:none" onchange="handlePng(event)">
+        </div>
+        <div class="tsec">
+          <div class="tlbl">COPY FROM</div>
+          <select class="tsel" id="cpySrc"></select>
+          <button class="tbtn" style="width:100%" onclick="copyFromImg()">PASTE HERE</button>
+        </div>
+      </div>
+    </div>
+    <div id="edit-bar">
+      <span id="edit-bar-label">&#9998; EDITING — unsaved changes</span>
+      <button class="btn-back" onclick="discardEdits()">&#8592; BACK</button>
+      <button class="btn-save" onclick="saveEdits()">&#10003; SAVE</button>
+    </div>
+    <div id="prev">
+      <span id="prevlbl">PREVIEW</span>
+      <div id="prevcanv"></div>
+    </div>
+  </div>
+  <div id="divider"></div>
+  <div id="rpanel">
+    <div id="cchdr">
+      <div id="cctitle">&#11044; C STRUCTURE — LIVE</div>
+      <button class="btn" onclick="copyAllC()">COPY ALL</button>
+    </div>
+    <div id="ccarea"></div>
+  </div>
+</div>
+<div id="sbar">
+  <span>TOOL:<span class="val" id="sbtool">DRAW</span></span>
+  <span>IMAGE:<span class="val" id="sbimg">—</span></span>
+  <span>SIZE:<span class="val" id="sbsize">—</span></span>
+  <span>BYTES:<span class="val" id="sbbytes">—</span></span>
+  <span style="margin-left:auto;font-size:11px;color:var(--text3)">column-major · LSB=top · IoT Image Editor v1.0</span>
+</div>
+<div id="modov">
+  <div id="moddlg">
+    <h3>NEW IMAGE</h3>
+    <div class="mrow"><label>Variable Name</label><input type="text" id="mn" placeholder="img_my_icon"></div>
+    <div class="mrow"><label>Width (pixels)</label><input type="number" id="mw" value="20" min="1" max="256"></div>
+    <div class="mrow"><label>Height (pixels)</label><input type="number" id="mh" value="8" min="1" max="256"></div>
+    <div class="mbtns">
+      <button class="btn" onclick="closeModal()">CANCEL</button>
+      <button class="btn pri" onclick="confirmImage()">CREATE</button>
+    </div>
+  </div>
+</div>
+<script>
+// STATE
+var images=[], aii=-1, tool="draw", mdown=false, mdval=1;
+
+// HELPERS
+function bpc(img){ return Math.ceil(img.h/8); }
+function totalBytes(img){ return 4 + img.w * bpc(img); }
+function esc(s){ return (""+s).split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;"); }
+function h2(n){ return "0x"+("00"+(n>>>0).toString(16)).slice(-2); }
+function u16le(n){ return [n&0xFF,(n>>8)&0xFF]; }
+function getPixels(img){ if(!img.data) img.data=new Array(img.w*bpc(img)).fill(0); return img.data; }
+function getBit(img,row,col){ var bi=Math.floor(row/8)*img.w+col; return (getPixels(img)[bi]>>(row%8))&1; }
+function setBit(img,row,col,val){ var bi=Math.floor(row/8)*img.w+col; var a=getPixels(img); if(val)a[bi]|=(1<<(row%8)); else a[bi]&=~(1<<(row%8)); }
+function maskBits(img){
+  var lastBits=img.h%8; if(lastBits===0) return;
+  var mask=(1<<lastBits)-1; var lastRow=bpc(img)-1; var a=getPixels(img);
+  for(var col=0;col<img.w;col++){ var idx=lastRow*img.w+col; if(idx<a.length) a[idx]&=mask; }
+}
+function resizeImg(img,nw,nh){
+  var nb=nw*Math.ceil(nh/8); var nd=new Array(nb).fill(0);
+  for(var row=0;row<Math.min(img.h,nh);row++){
+    for(var col=0;col<Math.min(img.w,nw);col++){
+      if(getBit(img,row,col)){ var bi2=Math.floor(row/8)*nw+col; if(bi2<nb) nd[bi2]|=(1<<(row%8)); }
+    }
+  }
+  img.w=nw; img.h=nh; img.data=nd; maskBits(img);
+}
+
+// INIT
+var editingSnapshot = null;  // snapshot of image data before edit
+
+function beginEdit() {
+  var img = images[aii];
+  editingSnapshot = img.data ? img.data.slice() : null;
+  document.getElementById('edit-bar').classList.add('active');
+  var grid = document.getElementById('pgrid');
+  if (grid) grid.classList.add('editing');
+}
+
+function saveEdits() {
+  editingSnapshot = null;
+  document.getElementById('edit-bar').classList.remove('active');
+  var grid = document.getElementById('pgrid');
+  if (grid) grid.classList.remove('editing');
+  drawPreview();
+  updateC(function(){ showInFile(); });
+}
+
+function discardEdits() {
+  if (editingSnapshot !== null && aii >= 0) {
+    images[aii].data = editingSnapshot.slice();
+    editingSnapshot = null;
+  }
+  document.getElementById('edit-bar').classList.remove('active');
+  var grid = document.getElementById('pgrid');
+  if (grid) grid.classList.remove('editing');
+  renderEditor();
+  updateC();
+}
+
+function init(){
+  var d1=[0x7E,0xFF,0xFF,0xFD,0xFD,0x81,0xFD,0xFF,0xC3,0xBD,0xBD,0xDB,0xFF,0xC1,0xBF,0xBF,0xC1,0xFF,0xFF,0x7E];
+  var d2=[0x7E,0xFF,0xFF,0xC3,0xBD,0xBD,0xC3,0xFF,0x81,0xED,0xED,0xF3,0xFF,0x81,0xED,0xED,0xF3,0xFF,0xFF,0x7E];
+  images.push({name:"img_com_tcu_full",w:20,h:8,data:d1});
+  images.push({name:"img_com_opp_full",w:20,h:8,data:d2});
+  aii=0; renderImageList(); selectImage(0);
+}
+
+// IMAGE LIST
+function renderImageList(){
+  var el=document.getElementById("ilist"); el.innerHTML="";
+  for(var i=0;i<images.length;i++){
+    var img=images[i]; var d=document.createElement("div");
+    d.className="iitem"+(i===aii?" act":"");
+    d.innerHTML="<div class=\"iname\">"+esc(img.name)+"</div>"
+      +"<div class=\"imeta\">W:<span>"+img.w+"</span> H:<span>"+img.h+"</span> BYTES:<span>"+totalBytes(img)+"</span></div>";
+    (function(idx){d.onclick=function(){selectImage(idx);};})(i);
+    el.appendChild(d);
+  }
+  document.getElementById("sfcnt").textContent=images.length;
+  var sel=document.getElementById("cpySrc"); sel.innerHTML="<option value=\"\">-- image --</option>";
+  for(var j=0;j<images.length;j++){
+    var o=document.createElement("option"); o.value=j; o.textContent=images[j].name; sel.appendChild(o);
+  }
+}
+
+function selectImage(idx){
+  if(editingSnapshot!==null){ editingSnapshot=null; document.getElementById("edit-bar").classList.remove("active"); var gg=document.getElementById("pgrid");if(gg)gg.classList.remove("editing"); }
+  aii=idx; if(idx<0||idx>=images.length) return;
+  var img=images[idx];
+  document.getElementById("in").value=img.name;
+  document.getElementById("iw").value=img.w;
+  document.getElementById("ih").value=img.h;
+  renderImageList(); renderEditor(); updateC(); updateSbar();
+  document.getElementById("sfact").textContent=img.name;
+  document.getElementById("sbimg").textContent=img.name;
+  setTimeout(function(){scrollToImage(idx);},60);
+}
+
+function updateImage(){
+  if(aii<0) return; var img=images[aii];
+  var nn=document.getElementById("in").value||img.name;
+  var nw=parseInt(document.getElementById("iw").value)||img.w;
+  var nh=parseInt(document.getElementById("ih").value)||img.h;
+  img.name=nn;
+  if(nw!==img.w||nh!==img.h) resizeImg(img,Math.max(1,Math.min(256,nw)),Math.max(1,Math.min(256,nh)));
+  renderImageList(); renderEditor(); updateC();
+}
+
+function delImage(){
+  if(aii<0||images.length<=1) return;
+  if(!confirm("Delete \""+images[aii].name+"\"?")) return;
+  images.splice(aii,1); aii=Math.min(aii,images.length-1);
+  renderImageList(); selectImage(aii);
+}
+
+function cloneImage(){
+  if(aii<0) return;
+  var c=JSON.parse(JSON.stringify(images[aii])); c.name+="_copy";
+  images.splice(aii+1,0,c); renderImageList(); selectImage(aii+1);
+}
+
+// EDITOR
+function renderEditor(){
+  if(aii<0) return; var img=images[aii]; getPixels(img);
+  var em=document.getElementById("emain"); em.innerHTML="";
+  // Info
+  var info=document.createElement("div"); info.id="einfo";
+  info.innerHTML="<span style=\"font-family:Share Tech Mono,monospace;font-size:13px;\">"
+    +esc(img.name)+"</span> | <span>"+img.w+"</span>x<span>"+img.h+"</span>px | <span>"+totalBytes(img)+"</span>B"
+    +"&nbsp;&nbsp;<button id=\"show-in-file-btn\" onclick=\"showInFile()\">SHOW IN FILE</button>";
+  em.appendChild(info);
+  // Pixel size - always square
+  var px=Math.max(6,Math.min(32,Math.min(Math.floor(380/img.w),Math.floor(300/img.h))));
+  // Col labels
+  var cl=document.createElement("div"); cl.id="pclbls"; cl.style.paddingLeft="26px";
+  for(var col=0;col<img.w;col++){
+    var lbl=document.createElement("div"); lbl.className="pxlbl";
+    lbl.style.width=px+"px"; lbl.textContent=(col%5===0)?col:""; cl.appendChild(lbl);
+  }
+  em.appendChild(cl);
+  // Wrap
+  var wrap=document.createElement("div"); wrap.id="pwrap";
+  var mind=document.createElement("div"); mind.id="modindicator"; mind.textContent=tool.toUpperCase()+" MODE"; wrap.appendChild(mind);
+  var rl=document.createElement("div"); rl.id="prlbls";
+  for(var row=0;row<img.h;row++){
+    var rlbl=document.createElement("div"); rlbl.className="pylbl";
+    rlbl.style.height=px+"px"; rlbl.textContent=(row%4===0)?row:""; rl.appendChild(rlbl);
+  }
+  wrap.appendChild(rl);
+  // Grid
+  var grid=document.createElement("div"); grid.id="pgrid";
+  grid.style.gridTemplateColumns="repeat("+img.w+","+px+"px)";
+  grid.style.gridTemplateRows="repeat("+img.h+","+px+"px)";
+  for(var r=0;r<img.h;r++){
+    for(var c=0;c<img.w;c++){
+      var pxEl=document.createElement("div"); pxEl.className="px";
+      pxEl.dataset.r=r; pxEl.dataset.c=c;
+      if(getBit(img,r,c)) pxEl.classList.add("on");
+      (function(rr,cc){
+        pxEl.addEventListener("mousedown",function(e){
+          mdown=true; var wasOn=this.classList.contains("on");
+          mdval=(tool==="erase")?0:(tool==="toggle"?(wasOn?0:1):1);
+          doPixel(rr,cc,mdval); e.preventDefault();
+        });
+        pxEl.addEventListener("mousemove",function(){if(mdown)doPixel(rr,cc,mdval);});
+      })(r,c);
+      grid.appendChild(pxEl);
+    }
+  }
+  wrap.appendChild(grid); em.appendChild(wrap);
+
+  updateSbar(); drawPreview();
+}
+
+
+function doPixel(row,col,val){
+  if(aii<0) return; var img=images[aii];
+  if(row<0||row>=img.h||col<0||col>=img.w) return;
+  // snapshot BEFORE first change
+  if (editingSnapshot === null) {
+    editingSnapshot = img.data ? img.data.slice() : null;
+    document.getElementById('edit-bar').classList.add('active');
+    var gg=document.getElementById('pgrid'); if(gg) gg.classList.add('editing');
+  }
+  setBit(img,row,col,val); maskBits(img);
+  var grid=document.getElementById("pgrid");
+  if(grid){
+    var pxEl=grid.querySelector("[data-r=\""+row+"\"][data-c=\""+col+"\"]");
+    if(pxEl){if(val)pxEl.classList.add("on");else pxEl.classList.remove("on");}
+  }
+  // updateC deferred to saveEdits()
+}
+
+
+// TOOLS
+function setTool(t){
+  tool=t;
+  ["draw","erase","toggle"].forEach(function(id){
+    var el=document.getElementById("t"+id[0]);
+    if(el) el.classList.toggle("act",id===t);
+  });
+  var ind=document.getElementById("modindicator");
+  if(ind) ind.textContent=t.toUpperCase()+" MODE";
+  document.getElementById("sbtool").textContent=t.toUpperCase();
+}
+
+function getPixArr(){ var img=images[aii]; var rows=[];
+  for(var r=0;r<img.h;r++){var row=[];for(var c=0;c<img.w;c++)row.push(getBit(img,r,c));rows.push(row);}
+  return rows;
+}
+function applyPixArr(rows){
+  var img=images[aii]; img.data=new Array(img.w*bpc(img)).fill(0);
+  for(var r=0;r<rows.length&&r<img.h;r++)
+    for(var c=0;c<rows[r].length&&c<img.w;c++)
+      if(rows[r][c]) setBit(img,r,c,1);
+  maskBits(img);
+  // close any pending edit, these ops are immediate
+  editingSnapshot=null;
+  document.getElementById("edit-bar").classList.remove("active");
+  var g=document.getElementById("pgrid"); if(g) g.classList.remove("editing");
+  renderEditor(); updateC();
+}
+
+function opClear(){if(aii<0)return;var img=images[aii];img.data=new Array(img.w*bpc(img)).fill(0);renderEditor();updateC();}
+function opFill(){
+  if(aii<0)return; var img=images[aii];
+  var B=img.w*bpc(img); var lastBits=img.h%8||8; var mask=(1<<lastBits)-1;
+  img.data=new Array(B).fill(0xFF);
+  var lastRow=bpc(img)-1;
+  for(var col=0;col<img.w;col++) img.data[lastRow*img.w+col]=mask;
+  renderEditor(); updateC();
+}
+function opInvert(){if(aii<0)return;var rows=getPixArr();for(var r=0;r<rows.length;r++)for(var c=0;c<rows[r].length;c++)rows[r][c]=rows[r][c]?0:1;applyPixArr(rows);}
+function opShift(dir){
+  if(aii<0)return; var img=images[aii]; var rows=getPixArr();
+  if(dir==="L"){for(var r=0;r<rows.length;r++){rows[r].shift();rows[r].push(0);}}
+  else if(dir==="R"){for(var r=0;r<rows.length;r++){rows[r].pop();rows[r].unshift(0);}}
+  else if(dir==="U"){rows.shift();rows.push(new Array(img.w).fill(0));}
+  else if(dir==="D"){rows.pop();rows.unshift(new Array(img.w).fill(0));}
+  applyPixArr(rows);
+}
+function opMirror(axis){
+  if(aii<0)return; var rows=getPixArr();
+  if(axis==="H"){for(var r=0;r<rows.length;r++)rows[r].reverse();}
+  else rows.reverse();
+  applyPixArr(rows);
+}
+
+function applyTpl(type){
+  if(aii<0)return; var img=images[aii]; var W=img.w,H=img.h;
+  var rows=[]; for(var r=0;r<H;r++) rows.push(new Array(W).fill(0));
+  if(type==="box"){for(var r=0;r<H;r++)for(var c=0;c<W;c++)if(r===0||r===H-1||c===0||c===W-1)rows[r][c]=1;}
+  else if(type==="cross"){var mr=Math.floor(H/2),mc=Math.floor(W/2);for(var r=0;r<H;r++)rows[r][mc]=1;for(var c=0;c<W;c++)rows[mr][c]=1;}
+  else if(type==="diag"){for(var r=0;r<H;r++){var cc=Math.round(r*(W-1)/(H-1));if(cc<W)rows[r][cc]=1;}}
+  else if(type==="circle"){var cx=W/2-.5,cy=H/2-.5,rx=W/2-.5,ry=H/2-.5;for(var r=0;r<H;r++)for(var c=0;c<W;c++){var dx=(c-cx)/rx,dy=(r-cy)/ry,d=Math.sqrt(dx*dx+dy*dy);if(d>=.75&&d<=1.15)rows[r][c]=1;}}
+  else if(type==="check"){for(var r=0;r<H;r++)for(var c=0;c<W;c++)rows[r][c]=(r+c)%2;}
+  else if(type==="vlines"){for(var r=0;r<H;r++)for(var c=0;c<W;c++)rows[r][c]=c%2===0?1:0;}
+  else if(type==="hlines"){for(var r=0;r<H;r++)for(var c=0;c<W;c++)rows[r][c]=r%2===0?1:0;}
+  else if(type==="fillall"){for(var r=0;r<H;r++)for(var c=0;c<W;c++)rows[r][c]=1;}
+  applyPixArr(rows);
+}
+
+function copyFromImg(){
+  var sel=document.getElementById("cpySrc"); var si=parseInt(sel.value);
+  if(isNaN(si)||si<0||si>=images.length) return;
+  var src=images[si]; var dst=images[aii];
+  dst.data=new Array(dst.w*bpc(dst)).fill(0);
+  for(var r=0;r<Math.min(src.h,dst.h);r++)
+    for(var c=0;c<Math.min(src.w,dst.w);c++)
+      if(getBit(src,r,c)) setBit(dst,r,c,1);
+  maskBits(dst); renderEditor(); updateC();
+}
+
+// MODAL
+function showModal(){document.getElementById("modov").classList.add("show");setTimeout(function(){document.getElementById("mn").focus();},50);}
+function closeModal(){document.getElementById("modov").classList.remove("show");}
+function confirmImage(){
+  var name=document.getElementById("mn").value||"img_new";
+  var w=Math.max(1,Math.min(256,parseInt(document.getElementById("mw").value)||10));
+  var h=Math.max(1,Math.min(256,parseInt(document.getElementById("mh").value)||16));
+  images.push({name:name,w:w,h:h,data:new Array(w*Math.ceil(h/8)).fill(0)});
+  closeModal(); aii=images.length-1; renderImageList(); selectImage(aii);
+}
+document.getElementById("modov").addEventListener("click",function(e){if(e.target===this)closeModal();});
+
+// C CODE
+function sp(cls,txt){return "<span class=\""+cls+"\">"+txt+"</span>";}
+
+function scrollToImage(ii){
+  var area=document.getElementById("ccarea"); if(!area) return;
+  var t=area.querySelector("[data-img=\""+ii+"\"]");
+  if(t) t.scrollIntoView({block:"start",behavior:"smooth"});
+}
+
+function showInFile(){
+  var area=document.getElementById("ccarea"); if(!area) return;
+  var t=area.querySelector("[data-img=\""+aii+"\"]");
+  if(!t) return;
+  // scroll to the anchor itself; pulse the next visible sibling (comment)
+  t.scrollIntoView({block:"start",behavior:"smooth"});
+  var pulse=t.nextSibling||t;
+  while(pulse && pulse.nodeType===3) pulse=pulse.nextSibling; // skip text nodes
+  if(pulse){
+    pulse.classList.remove("img-pulse");
+    void pulse.offsetWidth;
+    pulse.classList.add("img-pulse");
+  }
+}
+
+function updateC(cb){
+  var area=document.getElementById("ccarea");
+  area.innerHTML=buildC();
+  area.classList.add("flash");
+  setTimeout(function(){area.classList.remove("flash");},300);
+  if(cb) requestAnimationFrame(function(){ requestAnimationFrame(cb); });
+}
+
+function buildC(){
+  var out="";
+  for(var ii=0;ii<images.length;ii++){
+    var img=images[ii]; var B=totalBytes(img);
+    var hdrBytes=u16le(img.w).concat(u16le(img.h));
+    out+='<span data-img="'+ii+'" style="display:block;height:0;overflow:hidden;"></span>';
+    out+=sp("ccm","/* "+esc(img.name)+" -- "+img.w+"x"+img.h+"px -- "+B+"B total */\n");
+    out+='<button class="cimg-copybtn" data-ii="'+ii+'" onclick="copyImgByIdx('+ii+')"'
+      +' title="Copy '+esc(img.name)+'"><svg width="13" height="13" viewBox="0 0 16 16" fill="none">'
+      +'<rect x="4" y="4" width="9" height="10" rx="1" stroke="currentColor" stroke-width="1.5"/>'
+      +'<path d="M3 3V2a1 1 0 011-1h7a1 1 0 011 1v1" stroke="currentColor" stroke-width="1.5"/>'
+      +'</svg> COPY</button>\n';
+    out+=sp("ckw","const ")+sp("cty","uint8_t ")+sp("cnm",esc(img.name))+"["+B+"]"+sp("cpu"," = {\n");
+    // header
+    out+="    ";
+    out+=sp("cnu",h2(hdrBytes[0]))+sp("cpu",", ")+sp("cnu",h2(hdrBytes[1]))+sp("cpu",", ");
+    out+=sp("cnu",h2(hdrBytes[2]))+sp("cpu",", ")+sp("cnu",h2(hdrBytes[3]))+sp("cpu",",");
+    out+=sp("ccm","  // width="+img.w+", height="+img.h+" (uint16 LE)\n");
+    // data rows
+    var B2=bpc(img);
+    for(var byteRow=0;byteRow<B2;byteRow++){
+      out+="    ";
+      for(var col=0;col<img.w;col++){
+        var idx=byteRow*img.w+col;
+        out+=sp("cnu",h2(img.data[idx]));
+        if(idx<img.data.length-1) out+=sp("cpu",", ");
+      }
+      out+=sp("ccm","  // rows "+(byteRow*8)+"-"+Math.min(byteRow*8+7,img.h-1)+"\n");
+    }
+    out+=sp("cpu","};");
+    if(ii<images.length-1) out+="\n\n"; else out+="\n";
+  }
+  return out;
+}
+
+function buildSingleC(ii){
+  var img=images[ii]; var B=totalBytes(img);
+  var hdrBytes=u16le(img.w).concat(u16le(img.h));
+  var out="/* "+img.name+" -- "+img.w+"x"+img.h+"px -- "+B+"B total */\n";
+  out+="const uint8_t "+img.name+"["+B+"] = {\n";
+  out+="    "+hdrBytes.map(h2).join(", ")+",  // width="+img.w+", height="+img.h+"\n";
+  var B2=bpc(img);
+  for(var byteRow=0;byteRow<B2;byteRow++){
+    out+="    ";
+    for(var col=0;col<img.w;col++){
+      var idx=byteRow*img.w+col;
+      out+=h2(img.data[idx]);
+      if(idx<img.data.length-1) out+=", ";
+    }
+    out+="  // rows "+(byteRow*8)+"-"+Math.min(byteRow*8+7,img.h-1)+"\n";
+  }
+  out+=";\n";
+  return out;
+}
+
+function getAllC(){
+  var out="";
+  for(var ii=0;ii<images.length;ii++) out+=buildSingleC(ii)+"\n";
+  return out;
+}
+
+function copyImgByIdx(ii){
+  var txt=buildSingleC(ii);
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).catch(function(){fallbackCopy(txt);});
+  else fallbackCopy(txt);
+  var btns=document.querySelectorAll(".cimg-copybtn[data-ii=\""+ii+"\"]");
+  btns.forEach(function(btn){
+    var orig=btn.innerHTML;
+    btn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><polyline points="2,8 6,13 14,4" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> COPIED!';
+    btn.classList.add("copied");
+    setTimeout(function(){btn.innerHTML=orig;btn.classList.remove("copied");},1800);
+  });
+}
+
+function copyAllC(){
+  var txt=getAllC(); fallbackCopy(txt);
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
+  var btn=event&&event.target;
+  if(btn){var o=btn.textContent;btn.textContent="COPIED!";btn.style.color="var(--green)";setTimeout(function(){btn.textContent=o;btn.style.color="";},1500);}
+}
+
+function fallbackCopy(txt){
+  var ta=document.createElement("textarea");ta.value=txt;ta.style.cssText="position:fixed;opacity:0";
+  document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);
+}
+
+function doExport(){
+  var blob=new Blob([getAllC()],{type:"text/plain"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="iot_images.c";a.click();URL.revokeObjectURL(a.href);
+}
+
+function doImport(){document.getElementById("imp").click();}
+function handleImport(e){
+  var file=e.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){parseImport(ev.target.result);};
+  reader.readAsText(file);e.target.value="";
+}
+
+function parseImport(text){
+  var cleaned=text.replace(/\/\/[^\n]*/g,"");
+  var re=/const\s+uint8_t\s+(\w+)\s*\[\s*\d*\s*\]\s*=\s*\{([^}]+)\}/g;
+  var match; var cnt=0;
+  while((match=re.exec(cleaned))!==null){
+    var name=match[1]; var body=match[2]; var bytes=[];
+    var br=/0[xX]([0-9a-fA-F]{1,2})(?![0-9a-fA-F])/g; var bm;
+    while((bm=br.exec(body))!==null) bytes.push(parseInt(bm[1],16));
+    if(bytes.length<4) continue;
+    var img;
+    var w=(bytes[1]<<8)|bytes[0]; var h=(bytes[3]<<8)|bytes[2];
+    var dataBytes=bytes.slice(4); var expected=w*Math.ceil(h/8);
+    if(w>0&&w<=256&&h>0&&h<=256&&dataBytes.length===expected){
+      img={name:name,w:w,h:h,data:dataBytes};
+    } else {
+      // No header - guess dimensions
+      var total=bytes.length; var found=false;
+      for(var tw=4;tw<=64&&!found;tw++){
+        for(var th=1;th<=128;th++){
+          if(tw*Math.ceil(th/8)===total){img={name:name,w:tw,h:th,data:bytes};found=true;break;}
+        }
+      }
+      if(!img) img={name:name,w:total,h:8,data:bytes};
+    }
+    maskBits(img);
+    var ex=-1;for(var i=0;i<images.length;i++){if(images[i].name===name){ex=i;break;}}
+    if(ex>=0) images[ex]=img; else images.push(img);
+    cnt++;
+  }
+  if(cnt>0){aii=images.length-1;renderImageList();selectImage(aii);alert("Imported "+cnt+" image(s).");}
+  else alert("No valid image arrays found.");
+}
+
+
+function importPng(){
+  document.getElementById("png-input").click();
+}
+
+function handlePng(e){
+  var file=e.target.files[0]; if(!file) return;
+  if(aii<0){ alert("Select an image first."); return; }
+  var img=images[aii];
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var image=new Image();
+    image.onload=function(){
+      // Draw scaled to img.w x img.h on offscreen canvas
+      var canvas=document.createElement("canvas");
+      canvas.width=img.w; canvas.height=img.h;
+      var ctx=canvas.getContext("2d");
+      // Scale preserving aspect ratio, centered, background=white
+      var scale=Math.min(img.w/image.width, img.h/image.height);
+      var sw=Math.round(image.width*scale);
+      var sh=Math.round(image.height*scale);
+      var ox=Math.floor((img.w-sw)/2);
+      var oy=Math.floor((img.h-sh)/2);
+      ctx.fillStyle="#ffffff";
+      ctx.fillRect(0,0,img.w,img.h);
+      ctx.drawImage(image,ox,oy,sw,sh);
+      var px=ctx.getImageData(0,0,img.w,img.h).data;
+      // Convert to monochrome: luminance threshold 128
+      img.data=new Array(img.w*bpc(img)).fill(0);
+      for(var row=0;row<img.h;row++){
+        for(var col=0;col<img.w;col++){
+          var base=(row*img.w+col)*4;
+          var r=px[base],g=px[base+1],b=px[base+2],a=px[base+3];
+          // If transparent treat as off
+          if(a<128){ continue; }
+          var lum=0.299*r+0.587*g+0.114*b;
+          if(lum<128) setBit(img,row,col,1);
+        }
+      }
+      maskBits(img);
+      editingSnapshot=null;
+      document.getElementById("edit-bar").classList.remove("active");
+      var g=document.getElementById("pgrid"); if(g) g.classList.remove("editing");
+      renderEditor(); updateC();
+    };
+    image.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value="";
+}
+
+// PREVIEW
+function drawPreview(){
+  if(aii<0) return; var img=images[aii];
+  var canv=document.getElementById("prevcanv"); canv.innerHTML="";
+  var maxH=Math.floor(window.innerHeight*0.09);
+  var S=Math.max(1,Math.min(6,Math.floor(maxH/img.h)));
+  var cv=document.createElement("canvas");
+  cv.width=img.w*S; cv.height=img.h*S; cv.style.imageRendering="pixelated";
+  var ctx=cv.getContext("2d");
+  ctx.fillStyle="#0a0c0f"; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle="#00d4ff";
+  for(var col=0;col<img.w;col++) for(var row=0;row<img.h;row++)
+    if(getBit(img,row,col)) ctx.fillRect(col*S,row*S,S,S);
+  canv.appendChild(cv);
+}
+
+// STATUS
+function updateSbar(){
+  if(aii<0) return; var img=images[aii];
+  document.getElementById("sbimg").textContent=img.name;
+  document.getElementById("sbsize").textContent=img.w+"x"+img.h;
+  document.getElementById("sbbytes").textContent=totalBytes(img)+" bytes";
+}
+
+// KEYBOARD
+document.addEventListener("mouseup",function(){mdown=false;});
+document.addEventListener("keydown",function(e){
+  var tag=e.target.tagName;
+  if(tag==="INPUT"||tag==="SELECT"||tag==="TEXTAREA") return;
+  var k=e.key;
+  if(k==="d"||k==="D") setTool("draw");
+  else if(k==="e"||k==="E") setTool("erase");
+  else if(k==="t"||k==="T") setTool("toggle");
+  else if(k==="i"||k==="I") opInvert();
+  else if(k==="Delete"||k==="Backspace"){e.preventDefault();opClear();}
+  else if(k==="ArrowLeft"&&e.shiftKey){e.preventDefault();opShift("L");}
+  else if(k==="ArrowRight"&&e.shiftKey){e.preventDefault();opShift("R");}
+  else if(k==="ArrowUp"&&e.shiftKey){e.preventDefault();opShift("U");}
+  else if(k==="ArrowDown"&&e.shiftKey){e.preventDefault();opShift("D");}
+});
+
+// RESIZABLE DIVIDER
+(function(){
+  var div=document.getElementById("divider"); if(!div) return;
+  var drag=false,startX=0,startW=0;
+  div.addEventListener("mousedown",function(e){
+    var rp=document.getElementById("rpanel"); if(!rp) return;
+    drag=true; startX=e.clientX; startW=rp.getBoundingClientRect().width;
+    div.classList.add("dragging"); document.body.style.cursor="col-resize"; document.body.style.userSelect="none";
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove",function(e){
+    if(!drag) return; var rp=document.getElementById("rpanel"); if(!rp) return;
+    var delta=startX-e.clientX;
+    rp.style.width=Math.max(200,Math.min(1000,startW+delta))+"px";
+  });
+  document.addEventListener("mouseup",function(){
+    if(!drag) return; drag=false; div.classList.remove("dragging");
+    document.body.style.cursor=""; document.body.style.userSelect="";
+  });
+})();
+
+init();
+</script>
+</body>
+</html>
