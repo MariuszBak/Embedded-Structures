@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>IoT Font Editor</title>
+<style>
+  #edit-bar {
+    background: var(--bg3);
+    border-top: 2px solid transparent;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    visibility: hidden;
+  }
+  #edit-bar.active { visibility: visible; border-top-color: var(--accent3); }
+  #edit-bar-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    color: var(--yellow);
+    letter-spacing: 2px;
+    flex: 1;
+  }
+  .btn-save {
+    background: #0a2a10;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 5px 16px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all .15s;
+  }
+  .btn-save:hover { background: #0d3d16; }
+  .btn-back {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 5px 16px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all .15s;
+  }
+  .btn-back:hover { background: var(--bg4); border-color: var(--red); color: var(--red); }
+  #pgrid.editing { border-color: var(--yellow); box-shadow: 0 0 12px rgba(255,204,0,.2); }
+
+  /* ── LAYOUT ── */
+  #main { display:flex; flex:1; overflow:hidden; min-width:0; }
+
+  /* Left panel */
+  #lpanel {
+    width: 220px;
+    min-width: 200px;
+    flex-shrink: 0;
+    background: #111620;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Center panel */
+  #cpanel {
+    flex: 1;
+    min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Divider */
+  #divider {
+    width: 6px;
+    min-width: 6px;
+    flex-shrink: 0;
+    background: var(--border2);
+    cursor: col-resize;
+    position: relative;
+    transition: background .15s;
+    z-index: 10;
+  }
+  #divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    width: 2px;
+    height: 40px;
+    background: var(--text3);
+    border-radius: 2px;
+    opacity: .5;
+  }
+  #divider:hover, #divider.dragging {
+    background: var(--accent3);
+  }
+  #divider:hover::after, #divider.dragging::after {
+    background: var(--accent);
+    opacity: 1;
+  }
+
+  /* Right panel */
+  #rpanel {
+    width: 340px;
+    min-width: 200px;
+    flex-shrink: 0;
+    background: #111620;
+    border-left: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 1200px) {
+    #lpanel  { width: 200px; min-width: 200px; }
+    #rpanel  { width: 280px; min-width: 200px; }
+  }
+  @media (max-width: 960px) {
+    #lpanel  { width: 180px; min-width: 180px; }
+    #cpanel  { min-width: 260px; }
+    #rpanel  { width: 240px; min-width: 180px; }
+  }
+  @media (max-width: 700px) {
+    #main    { flex-direction: column; overflow-y: auto; overflow-x: hidden; height: auto; }
+    #lpanel  { width: 100%; min-width: unset; flex-direction: row; flex-wrap: wrap;
+               border-right: none; border-bottom: 1px solid var(--border); max-height: 180px; }
+    #flist   { min-height: 60px; max-height: 100px; }
+    #cpanel  { width: 100%; min-width: unset; }
+    #divider { display: none; }
+    #rpanel  { width: 100%; min-width: unset; border-top: 1px solid var(--border); max-height: 280px; }
+    body     { height: auto; overflow-y: auto; }
+  }
+  @media (max-width: 480px) {
+    .cc      { width: 36px; height: 36px; font-size: 14px; }
+    #hdr h1  { font-size: 12px; letter-spacing: 1px; }
+    .btn     { font-size: 10px; padding: 3px 7px; }
+  }
+
+
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&display=swap');
+  :root{
+    --bg:#0a0c0f;--bg2:#0f1318;--bg3:#141920;--bg4:#1a2230;
+    --border:#1e2d40;--border2:#2a3f58;
+    --accent:#00d4ff;--accent2:#0088cc;--accent3:#004d88;
+    --green:#00ff88;--red:#ff3344;--yellow:#ffcc00;
+    --text:#c8dde8;--text2:#7a9ab0;--text3:#4a6880;
+    --px-on:#00d4ff;--px-off:#0d1e2a;--px-hov:#004466;
+    --grid-line:#152030;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:14px;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+  #hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:6px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;row-gap:4px;}
+  #hdr h1{font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:var(--accent);letter-spacing:3px;white-space:nowrap;}
+  #hdr h1 em{color:var(--green);font-style:normal;}
+  .sep{width:1px;height:26px;background:var(--border);flex-shrink:0;}
+  .hbtns{display:flex;gap:5px;flex-wrap:wrap;}
+  .btn{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:5px 12px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all .15s;}
+  .btn:hover{background:var(--bg4);border-color:var(--accent);color:var(--accent);}
+  .btn.pri{background:var(--accent3);border-color:var(--accent2);color:var(--accent);}
+  .btn.pri:hover{background:var(--accent2);}
+  .btn.dng{border-color:#331122;color:var(--red);}
+  .btn.dng:hover{background:#220011;border-color:var(--red);}
+  
+  .phdr{padding:7px 12px;background:var(--bg2);border-bottom:1px solid var(--border);font-family:'Orbitron',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:2px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  #flist{flex:1;overflow-y:auto;padding:6px;}
+  .fitem{background:var(--bg3);border:1px solid var(--border);padding:7px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;position:relative;}
+  .fitem:hover{border-color:var(--border2);background:var(--bg4);}
+  .fitem.act{border-color:var(--accent);background:linear-gradient(90deg,#001a2a,var(--bg3));}
+  .fitem.act::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+  .fname{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1px;margin-bottom:3px;}
+  .fmeta{color:var(--text3);font-size:12px;line-height:1.7;}
+  .fmeta span{color:var(--text2);}
+  #fctrl{padding:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
+  .clbl{font-family:'Orbitron',monospace;font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;}
+  .irow{display:flex;gap:4px;align-items:center;}
+  .irow label{font-size:11px;color:var(--text3);width:48px;flex-shrink:0;letter-spacing:1px;text-transform:uppercase;}
+  input[type=text],input[type=number]{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;padding:4px 7px;flex:1;min-width:0;}
+  input[type=text]:focus,input[type=number]:focus{outline:none;border-color:var(--accent2);}
+  input[type=number]{width:44px;flex:none;}
+  
+  #cmap{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 10px;flex-shrink:0;overflow-y:auto;max-height:420px;}
+  #cgrid{display:flex;flex-wrap:wrap;gap:4px;}
+  .cc{width:42px;height:42px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--text2);transition:all .1s;position:relative;border-radius:3px;}
+  .cc:hover{background:var(--bg4);border-color:var(--accent2);color:var(--accent);}
+  .cc.act{background:var(--accent3);border-color:var(--accent);color:var(--accent);box-shadow:0 0 6px rgba(0,212,255,.3);}
+  .cc.hasdata::after{content:'';position:absolute;bottom:1px;right:1px;width:3px;height:3px;background:var(--green);border-radius:50%;}
+  #earea{flex:1;display:grid;grid-template-columns:1fr 160px;overflow:hidden;min-height:0;}
+  #emain{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 18px;gap:11px;overflow:auto;}
+  #einfo{font-family:'Orbitron',monospace;font-size:13px;color:var(--accent);letter-spacing:2px;text-align:center;}
+  #einfo span{color:var(--yellow);}
+  #pgrid{display:grid;gap:2px;background:var(--grid-line);padding:2px;border:1px solid var(--border2);cursor:crosshair;user-select:none;box-shadow:0 0 24px rgba(0,100,150,.1);}
+  .px{background:var(--px-off);cursor:crosshair;}
+  .px:hover{background:var(--px-hov);}
+  .px.on{background:var(--px-on);box-shadow:0 0 4px rgba(0,212,255,.35);}
+  .px.on:hover{background:#33eeff;}
+  #pclbls{display:flex;gap:2px;margin-bottom:2px;}
+  .pxlbl{text-align:center;font-size:9px;color:var(--text3);}
+  #pwrap{position:relative;display:inline-block;}
+  #prlbls{position:absolute;left:-20px;top:4px;display:flex;flex-direction:column;gap:2px;}
+  .pylbl{display:flex;align-items:center;font-size:9px;color:var(--text3);}
+  #etbar{background:var(--bg2);border-left:1px solid var(--border);padding:7px;display:flex;flex-direction:column;gap:7px;overflow-y:auto;flex-shrink:0;}
+  .tsec{border-bottom:1px solid var(--border);padding-bottom:7px;}
+  .tsec:last-child{border-bottom:none;}
+  .tlbl{font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;font-family:'Orbitron',monospace;}
+  .tbtns{display:flex;flex-direction:column;gap:2px;}
+  .tbtn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 8px;cursor:pointer;text-align:left;transition:all .12s;}
+  .tbtn:hover{background:var(--bg4);border-color:var(--border2);color:var(--text);}
+  .tbtn.act{background:var(--accent3);border-color:var(--accent);color:var(--accent);}
+  select.tsel{background:var(--bg);border:1px solid var(--border);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:4px;width:100%;margin-bottom:3px;}
+  #trow{display:flex;gap:3px;flex-wrap:wrap;}
+  .tplbtn{background:var(--bg3);border:1px solid var(--border);color:var(--text3);font-size:11px;padding:3px 7px;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;transition:all .1s;}
+  .tplbtn:hover{border-color:var(--accent2);color:var(--accent);background:var(--bg4);}
+  #modindicator{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-family:'Orbitron',monospace;font-size:10px;color:var(--yellow);letter-spacing:2px;white-space:nowrap;}
+  .hxinp{background:var(--bg);border:1px solid var(--border);color:#58a6ff;font-family:'Share Tech Mono',monospace;font-size:13px;padding:3px 5px;width:54px;text-align:center;}
+  .hxinp:focus{outline:none;border-color:#58a6ff;box-shadow:0 0 0 1px rgba(88,166,255,.3);}
+  #prev{background:var(--bg2);border-top:1px solid var(--border);padding:4px 10px;flex-shrink:0;display:flex;align-items:center;gap:10px;max-height:10vh;overflow:hidden;}
+  #prevlbl{font-family:'Orbitron',monospace;font-size:11px;color:var(--text3);letter-spacing:2px;flex-shrink:0;}
+  #previnp{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;padding:4px 8px;width:170px;flex-shrink:0;}
+  #prevcanvwrap{flex:1;overflow-x:auto;display:flex;align-items:center;}
+  #prevcanv{display:flex;gap:1px;align-items:flex-start;}
+  
+  #cchdr{padding:7px 12px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  #cctitle{font-family:'Orbitron',monospace;font-size:12px;font-weight:700;color:var(--green);letter-spacing:2px;}
+  #ccarea{flex:1;overflow:auto;padding:10px;font-family:'Share Tech Mono',monospace;font-size:12px;line-height:1.8;white-space:pre-wrap;word-break:break-all;background:var(--bg);color:var(--text2);}
+  .ckw{color:#6699ff}.cty{color:#ff9944}.cnm{color:#00ff88}.cnu{color:#00d4ff}.ccm{color:#3a5a70}.cpu{color:#667788}
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:var(--bg2)}
+  ::-webkit-scrollbar-thumb{background:var(--border2)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent3)}
+  #sbar{background:var(--accent3);border-top:1px solid var(--accent2);padding:4px 14px;font-size:12px;color:var(--accent);display:flex;gap:14px;flex-shrink:0;font-family:'IBM Plex Mono',monospace;flex-wrap:wrap;row-gap:2px;}
+  #sbar .val{color:var(--accent);font-weight:600;}
+  #sbar .dim{color:var(--text3);}
+  @keyframes flash{0%{background:rgba(0,212,255,.08)}100%{background:transparent}}
+  .flash{animation:flash .3s ease-out;}
+  #modov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+  #modov.show{display:flex;}
+  #moddlg{background:#111620;border:1px solid var(--border2);padding:20px;min-width:300px;box-shadow:0 0 40px rgba(0,100,150,.25);}
+  #moddlg h3{font-family:'Orbitron',monospace;font-size:14px;color:var(--accent);letter-spacing:2px;margin-bottom:14px;}
+  .mrow{margin-bottom:9px;}
+  .mrow label{display:block;font-size:11px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:1px;}
+  .mrow input{width:100%;}
+  .mbtns{display:flex;gap:8px;margin-top:14px;justify-content:flex-end;}
+  #nosel{display:flex;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:12px;color:var(--text3);font-family:'Orbitron',monospace;font-size:14px;letter-spacing:2px;}
+  #nosel .big{font-size:32px;opacity:.2;}
+
+  .cfont-copybtn {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    color: var(--accent2); font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; padding: 2px 8px; cursor: pointer;
+    transition: all .15s; vertical-align: middle;
+    margin-bottom: 2px; letter-spacing: 0.5px;
+    user-select: none;
+  }
+  .cfont-copybtn:hover { background: var(--bg4); border-color: var(--accent); color: var(--accent); }
+  .cfont-copybtn.copied { border-color: var(--green); color: var(--green); }
+  .cfont-copybtn svg { flex-shrink: 0; }
+
+
+  .char-highlight-pulse {
+    animation: charPulse 1.8s ease-out;
+  }
+  @keyframes charPulse {
+    0%   { background: rgba(255,204,0,0.35); }
+    60%  { background: rgba(255,204,0,0.15); }
+    100% { background: transparent; }
+  }
+  #show-in-file-btn {
+    background:var(--bg3); border:1px solid var(--border2);
+    color:var(--yellow); font-family:'IBM Plex Mono',monospace;
+    font-size:11px; padding:4px 10px; cursor:pointer;
+    transition:all .15s; letter-spacing:0.5px;
+  }
+  #show-in-file-btn:hover { background:var(--bg4); border-color:var(--yellow); }
+
+
+  
+  @media (max-width: 1100px) {
+    
+    
+    #etbar { width: 140px; }
+    #earea { grid-template-columns: 1fr 140px; }
+  }
+  @media (max-width: 900px) {
+    
+    
+    
+    #flist { min-height: 80px; max-height: 120px; width: 100%; }
+    #fctrl { flex-direction: row; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--border); width: 100%; }
+    
+    
+    
+    
+    body { overflow-y: auto; height: auto; min-height: 100vh; }
+    
+  }
+  @media (max-width: 600px) {
+    .cc { width: 30px; height: 30px; font-size: 12px; }
+    #hdr h1 { font-size: 13px; letter-spacing: 2px; }
+    .btn { font-size: 10px; padding: 4px 8px; }
+  }
+
+  #hxbytes-editor { padding:0 4px; }
+  #hxbytes-editor .hxinp { width:52px; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="hdr">
+  <h1>IoT <em>FONT</em> EDITOR</h1>
+  <div class="sep"></div>
+  <div class="hbtns">
+    <button class="btn pri" onclick="showModal()">+ NEW FONT</button>
+    <button class="btn" onclick="doImport()">IMPORT FILE</button>
+    <button class="btn" onclick="doExport()" style="color:var(--green);border-color:#113322">EXPORT FILE</button>
+    <input type="file" id="imp" accept=".h,.c,.txt" style="display:none" onchange="handleImport(event)">
+    <button class="btn" onclick="copyC()">COPY C</button>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:16px;align-items:center;">
+    <span class="dim" style="font-size:12px;color:var(--text3)">FONTS:<span id="sfcnt" style="color:var(--accent);margin-left:4px">0</span></span>
+    <span class="dim" style="font-size:12px;color:var(--text3)">ACTIVE:<span id="sfact" style="color:var(--yellow);margin-left:4px">—</span></span>
+    <span class="dim" style="font-size:12px;color:var(--text3)">CHAR:<span id="sfch" style="color:var(--green);margin-left:4px">—</span></span>
+  </div>
+</div>
+<div id="main">
+  <div id="lpanel">
+    <div class="phdr">FONTS<div class="dot"></div></div>
+    <div id="flist"></div>
+    <div id="fctrl">
+      <div class="clbl">FONT SETTINGS</div>
+      <div class="irow"><label>NAME</label><input type="text" id="fn" placeholder="font_name" oninput="updateFont()"></div>
+      <div class="irow"><label>W x H</label><input type="number" id="fw" min="1" max="32" value="5" oninput="updateFont()"><span style="color:var(--text3);padding:0 3px">x</span><input type="number" id="fh" min="1" max="32" value="7" oninput="updateFont()"></div>
+      <div class="irow"><label>START</label><input type="number" id="fs" min="0" max="127" value="32" oninput="updateFont()"><span id="fsdisp" style="font-size:10px;color:var(--text2);margin-left:5px"> </span></div>
+      <div style="display:flex;gap:4px;margin-top:3px">
+        <button class="btn dng" style="flex:1;font-size:9px" onclick="delFont()">DELETE</button>
+        <button class="btn" style="flex:1;font-size:9px" onclick="cloneFont()">CLONE</button>
+      </div>
+    </div>
+  </div>
+  <div id="cpanel">
+    <div id="cmap">
+      <div style="font-family:Orbitron,monospace;font-size:11px;color:var(--text3);letter-spacing:2px;margin-bottom:6px">ASCII MAP — arrow keys to navigate</div>
+      <div id="cgrid"></div>
+    </div>
+    <div id="earea">
+      <div id="emain"><div id="nosel"><div class="big">⊡</div><div>NO FONT SELECTED</div></div></div>
+      <div id="etbar">
+        <div class="tsec">
+          <div class="tlbl">DRAW MODE</div>
+          <div class="tbtns">
+            <button class="tbtn act" id="td" onclick="setTool('draw')">✦ DRAW [D]</button>
+            <button class="tbtn" id="te" onclick="setTool('erase')">◻ ERASE [E]</button>
+            <button class="tbtn" id="tt" onclick="setTool('toggle')">◈ TOGGLE [T]</button>
+          </div>
+        </div>
+        <div class="tsec">
+          <div class="tlbl">OPERATIONS</div>
+          <div class="tbtns">
+            <button class="tbtn" onclick="opClear()">⊡ CLEAR [Del]</button>
+            <button class="tbtn" onclick="opFill()">⊠ FILL</button>
+            <button class="tbtn" onclick="opInvert()">⊛ INVERT [I]</button>
+            <button class="tbtn" onclick="opShift('L')">← SHIFT L</button>
+            <button class="tbtn" onclick="opShift('R')">→ SHIFT R</button>
+            <button class="tbtn" onclick="opShift('U')">↑ SHIFT U</button>
+            <button class="tbtn" onclick="opShift('D')">↓ SHIFT D</button>
+            <button class="tbtn" onclick="opMirror('H')">⇔ MIRROR H</button>
+            <button class="tbtn" onclick="opMirror('V')">⇕ MIRROR V</button>
+          </div>
+        </div>
+        <div class="tsec">
+          <div class="tlbl">TEMPLATES</div>
+          <div id="trow">
+            <button class="tplbtn" onclick="applyTpl('box')">BOX</button>
+            <button class="tplbtn" onclick="applyTpl('cross')">CROSS</button>
+            <button class="tplbtn" onclick="applyTpl('diag')">DIAG</button>
+            <button class="tplbtn" onclick="applyTpl('circle')">CIRCLE</button>
+            <button class="tplbtn" onclick="applyTpl('check')">CHECK</button>
+            <button class="tplbtn" onclick="applyTpl('vlines')">VLINES</button>
+            <button class="tplbtn" onclick="applyTpl('hlines')">HLINES</button>
+          </div>
+        </div>
+        <div class="tsec">
+          <div class="tlbl">COPY CHAR</div>
+          <select class="tsel" id="cpySrc"></select>
+          <button class="tbtn" style="width:100%" onclick="copyChar()">PASTE HERE</button>
+          <div style="margin-top:5px;font-size:8px;color:var(--text3);letter-spacing:1px;margin-bottom:3px">FROM FONT:</div>
+          <select class="tsel" id="cpyFont"></select>
+          <button class="tbtn" style="width:100%;margin-top:2px" onclick="copyFromFont()">IMPORT CHAR</button>
+        </div>
+
+      </div>
+    </div>
+    <div id="edit-bar">
+      <span id="edit-bar-label">&#9998; EDITING — unsaved changes</span>
+      <button class="btn-back" onclick="discardEdits()">&#8592; BACK</button>
+      <button class="btn-save" onclick="saveEdits()">&#10003; SAVE</button>
+    </div>
+    <div id="prev">
+      <span id="prevlbl">PREVIEW</span>
+      <input type="text" id="previnp" placeholder="Type text..." oninput="drawPreview()" value="Hello 123">
+      <div id="prevcanvwrap"><div id="prevcanv"></div></div>
+    </div>
+  </div>
+  <div id="divider"></div>
+  <div id="rpanel">
+    <div id="cchdr">
+      <div id="cctitle">⬤ C STRUCTURE — LIVE</div>
+      <button class="btn" onclick="copyC()">COPY</button>
+    </div>
+    <div id="ccarea"></div>
+  </div>
+</div>
+<div id="sbar">
+  <span class="dim">TOOL:<span class="val" id="sbtool">DRAW</span></span>
+  <span class="dim">FONT:<span class="val" id="sbfont">—</span></span>
+  <span class="dim">SIZE:<span class="val" id="sbsize">—</span></span>
+  <span class="dim">CHAR:<span class="val" id="sbchar">—</span></span>
+  <span class="dim">TOTAL:<span class="val" id="sbbytes">—</span></span>
+  <span style="margin-left:auto;font-size:11px;color:var(--text3)">column-major · LSB=top · IoT Font Editor v1.0</span>
+</div>
+<div id="modov">
+  <div id="moddlg">
+    <h3>NEW FONT</h3>
+    <div class="mrow"><label>Variable Name</label><input type="text" id="mn" placeholder="my_font5x7"></div>
+    <div class="mrow"><label>Width (columns per char)</label><input type="number" id="mw" value="5" min="1" max="32"></div>
+    <div class="mrow"><label>Height (rows)</label><input type="number" id="mh" value="7" min="1" max="32"></div>
+    <div class="mrow"><label>Start char ASCII (32=space)</label><input type="number" id="ms" value="32" min="0" max="127"></div>
+    <div class="mbtns">
+      <button class="btn" onclick="closeModal()">CANCEL</button>
+      <button class="btn pri" onclick="confirmFont()">CREATE</button>
+    </div>
+  </div>
+</div>
+<script>
+
+// ---- STATE ----
+var fonts=[], afi=-1, aci=0x41, tool='draw', mdown=false, mdval=1;
+
+// ---- PRESET DATA ----
+var P5x7={
+  0x20:[0,0,0,0,0],0x21:[0,0,0x2E,0,0],0x22:[6,0,6,0,0],
+  0x23:[0x14,0x7F,0x14,0x7F,0x14],0x24:[6,0x49,0x7F,0x49,0x30],
+  0x25:[0x24,0x10,8,0x24,0],0x26:[0x36,0x49,0x36,0x50,0],
+  0x27:[0,0,0,6,0],0x28:[0,0x36,0x41,0,0],0x29:[0,0x41,0x36,0,0],
+  0x2A:[0,8,0,0,0],0x2B:[0,8,0x1C,8,0],0x2C:[0x40,0x20,0,0,0],
+  0x2D:[0,8,8,0,0],0x2E:[0x20,0,0,0,0],0x2F:[0,0x30,6,0,0],
+  0x30:[0x3E,0x51,0x49,0x3E,0],0x31:[0,0x42,0x7F,0x40,0],
+  0x32:[0x72,0x49,0x49,0x46,0],0x33:[0x21,0x49,0x4D,0x3B,0],
+  0x34:[0x0F,8,8,0x7F,0],0x35:[0x27,0x45,0x45,0x39,0],
+  0x36:[0x3E,0x49,0x49,0x32,0],0x37:[1,0x71,9,7,0],
+  0x38:[0x36,0x49,0x49,0x36,0],0x39:[0x26,0x49,0x49,0x3E,0],
+  0x3A:[0,0x14,0,0,0],0x3B:[0x20,0x14,0,0,0],
+  0x3C:[0,8,0x14,0x22,0],0x3D:[0,0x14,0x14,0x14,0],
+  0x3E:[0,0x22,0x14,8,0],0x3F:[0,1,0x31,6,0],
+  0x40:[0x36,0x49,0x55,0x59,0x2E],
+  0x41:[0x7E,0x11,0x11,0x7E,0],0x42:[0x7F,0x49,0x49,0x36,0],
+  0x43:[0x3E,0x41,0x41,0x22,0],0x44:[0x7F,0x41,0x41,0x3E,0],
+  0x45:[0x7F,0x49,0x49,0x41,0],0x46:[0x7F,9,9,1,0],
+  0x47:[0x3E,0x41,0x49,0x38,0],0x48:[0x7F,8,8,0x7F,0],
+  0x49:[0,0x7F,0,0,0],0x4A:[0x21,0x41,0x41,0x3F,0],
+  0x4B:[0x7F,8,0x14,0x63,0],0x4C:[0x7F,0x40,0x40,0x40,0],
+  0x4D:[0x7F,6,6,0x7F,0],0x4E:[0x7F,0x0C,0x30,0x7F,0],
+  0x4F:[0x3E,0x41,0x41,0x3E,0],0x50:[0x7F,9,9,6,0],
+  0x51:[0x3E,0x41,0x21,0x5E,0],0x52:[0x7F,9,0x19,0x66,0],
+  0x53:[0x26,0x49,0x49,0x32,0],0x54:[1,1,0x7F,1,0],
+  0x55:[0x3F,0x40,0x40,0x3F,0],0x56:[0x0F,0x10,0x20,0x7F,0],
+  0x57:[0x7F,0x30,0x30,0x7F,0],0x58:[0x73,0x0C,0x0C,0x73,0],
+  0x59:[7,0x78,8,7,0],0x5A:[0x71,0x49,0x45,0x43,0],
+  0x5B:[0x77,0x41,0x41,0,0],0x5C:[0,6,0x30,0,0],
+  0x5D:[0,0x41,0x41,0x77,0],0x5E:[0,2,1,2,0],
+  0x5F:[0,0x40,0x40,0,0],0x60:[0,1,2,0,0],
+  0x61:[0x20,0x54,0x54,0x38,0x40],0x62:[0,0x36,0x48,0x30,0],
+  0x63:[0x30,0x48,0x48,0,0],0x64:[0x30,0x48,0x48,0x76,0],
+  0x65:[0x38,0x54,0x54,8,0],0x66:[8,0x6C,0x0A,0,0],
+  0x67:[8,0x54,0x54,0x38,0],0x68:[0x36,8,8,0x30,0],
+  0x69:[0,0x34,0,0,0],0x6A:[0,0x40,0x34,0,0],
+  0x6B:[0x36,0x10,0x28,0,0],0x6C:[0x36,0,0,0,0],
+  0x6D:[0x30,8,0x10,8,0x30],0x6E:[0x30,8,8,0x30,0],
+  0x6F:[0x30,0x48,0x48,0x30,0],0x70:[0x78,0x14,0x14,8,0],
+  0x71:[8,0x14,0x14,0x68,0],0x72:[0x30,8,8,0,0],
+  0x73:[8,0x54,0x54,0x20,0],0x74:[8,0x2C,0x48,0,0],
+  0x75:[0x30,0x40,0x40,0x30,0],0x76:[0x30,0x40,0x30,0,0],
+  0x77:[0x30,0x40,0x20,0x40,0x30],0x78:[0x28,0x10,0x10,0x28,0],
+  0x79:[8,0x50,0x50,0x38,0],0x7A:[0x24,0x34,0x2C,0x24,0],
+  0x7B:[8,0x36,0x41,0,0],0x7C:[0,0x36,0,0,0],
+  0x7D:[0,0x41,0x36,8,0],0x7E:[8,8,0x10,0x10,0],
+  0x7F:[0x36,0x41,0x36,0,0]
+};
+
+// ---- HELPERS ----
+function bpc(f){ return f.w * Math.ceil(f.h/8); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function h2(n){ return '0x'+('00'+n.toString(16).toUpperCase()).slice(-2); }
+function charName(c){
+  if(c>=32&&c<=126) return String.fromCharCode(c);
+  return '?';
+}
+function getBytes(f,c){
+  if(!f.chars[c]) f.chars[c]=new Array(bpc(f)).fill(0);
+  return f.chars[c];
+}
+function getBit(f,c,row,col){
+  var bi=Math.floor(row/8)*f.w+col;
+  return (getBytes(f,c)[bi]>>(row%8))&1;
+}
+function setBit(f,c,row,col,val){
+  var bi=Math.floor(row/8)*f.w+col;
+  var arr=getBytes(f,c);
+  if(val) arr[bi]|=(1<<(row%8));
+  else arr[bi]&=~(1<<(row%8));
+}
+
+// ---- INIT ----
+
+function maskFontBits(f){
+  var lastBits=f.h%8;
+  if(lastBits===0) return;
+  var mask=(1<<lastBits)-1;
+  var lastByteRow=Math.ceil(f.h/8)-1;
+  for(var k in f.chars){
+    var arr=f.chars[k];
+    if(!arr) continue;
+    for(var col=0;col<f.w;col++){
+      var idx=lastByteRow*f.w+col;
+      if(idx<arr.length) arr[idx]&=mask;
+    }
+  }
+}
+var editingSnapshot = null;  // snapshot of chars for current char before edit
+
+function beginEdit() {
+  // snapshot current char data
+  var f = fonts[afi];
+  editingSnapshot = f.chars[aci] ? f.chars[aci].slice() : null;
+  document.getElementById('edit-bar').classList.add('active');
+  var grid = document.getElementById('pgrid');
+  if (grid) grid.classList.add('editing');
+}
+
+function saveEdits() {
+  editingSnapshot = null;
+  document.getElementById('edit-bar').classList.remove('active');
+  var grid = document.getElementById('pgrid');
+  if (grid) grid.classList.remove('editing');
+  if(typeof updateDot==="function") updateDot(aci);
+  drawPreview();
+  updateC(function(){ showInFile(); });
+}
+
+function discardEdits() {
+  if (editingSnapshot !== null && afi >= 0) {
+    var f = fonts[afi];
+    f.chars[aci] = editingSnapshot.slice();
+    editingSnapshot = null;
+  }
+  document.getElementById('edit-bar').classList.remove('active');
+  var grid = document.getElementById('pgrid');
+  if (grid) grid.classList.remove('editing');
+  renderEditor();
+  updateC();
+}
+
+function init(){
+  var f1={name:'sct_font5x7',w:5,h:7,start:0x20,chars:{}};
+  for(var c=0x20;c<=0x7F;c++){
+    f1.chars[c]=P5x7[c]?P5x7[c].slice():new Array(5).fill(0);
+  }
+  maskFontBits(f1);
+  fonts.push(f1);
+  var f2={name:'sct_font8x16',w:8,h:16,start:0x20,chars:{}};
+  for(var c2=0x20;c2<=0x7F;c2++) f2.chars[c2]=new Array(16).fill(0);
+  fonts.push(f2);
+  afi=0; aci=0x41;
+  buildCharGrid();
+  renderFontList();
+  selectFont(0);
+}
+
+// ---- FONT LIST ----
+function renderFontList(){
+  var el=document.getElementById('flist'); el.innerHTML='';
+  for(var i=0;i<fonts.length;i++){
+    var f=fonts[i];
+    var cnt=Object.keys(f.chars).length;
+    var total=4+cnt*bpc(f);
+    var d=document.createElement('div');
+    d.className='fitem'+(i===afi?' act':'');
+    d.innerHTML='<div class="fname">'+esc(f.name)+'</div>'
+      +'<div class="fmeta">W:<span>'+f.w+'</span> H:<span>'+f.h+'</span> B/CH:<span>'+bpc(f)+'</span></div>'
+      +'<div class="fmeta">CHARS:<span>'+cnt+'</span> TOTAL:<span>'+total+'B</span></div>';
+    (function(idx){ d.onclick=function(){ selectFont(idx); }; })(i);
+    el.appendChild(d);
+  }
+  document.getElementById('sfcnt').textContent=fonts.length;
+  // copy font select
+  var sel=document.getElementById('cpyFont'); sel.innerHTML='<option value="">-- font --</option>';
+  for(var j=0;j<fonts.length;j++){
+    var o=document.createElement('option'); o.value=j; o.textContent=fonts[j].name; sel.appendChild(o);
+  }
+}
+
+function selectFont(idx){
+  afi=idx;
+  if(idx<0||idx>=fonts.length) return;
+  var f=fonts[idx];
+  document.getElementById('fn').value=f.name;
+  document.getElementById('fw').value=f.w;
+  document.getElementById('fh').value=f.h;
+  document.getElementById('fs').value=f.start;
+  updateStartDisp();
+  renderFontList();
+  buildCharGrid();
+  renderEditor();
+  updateC();
+  updateSbar();
+  document.getElementById('sfact').textContent=f.name;
+  setTimeout(function(){ scrollToFont(idx); }, 50);
+}
+
+function updateFont(){
+  if(afi<0) return;
+  var f=fonts[afi];
+  var nn=document.getElementById('fn').value||f.name;
+  var nw=parseInt(document.getElementById('fw').value)||f.w;
+  var nh=parseInt(document.getElementById('fh').value)||f.h;
+  var ns=parseInt(document.getElementById('fs').value);
+  if(nw!==f.w||nh!==f.h){
+    var nb=nw*Math.ceil(nh/8);
+    for(var k in f.chars){
+      var old=f.chars[k]; var na=new Array(nb).fill(0);
+      for(var i=0;i<Math.min(old.length,nb);i++) na[i]=old[i];
+      f.chars[k]=na;
+    }
+    f.w=nw; f.h=nh;
+    renderEditor();
+  }
+  f.name=nn;
+  if(!isNaN(ns)) f.start=ns;
+  updateStartDisp();
+  renderFontList();
+  updateC();
+}
+
+function updateStartDisp(){
+  var v=parseInt(document.getElementById('fs').value);
+  var el=document.getElementById('fsdisp');
+  el.textContent=(!isNaN(v)&&v>=32&&v<=126)?("'"+String.fromCharCode(v)+"'"):'';
+}
+
+function delFont(){
+  if(afi<0||fonts.length<=1) return;
+  if(!confirm('Delete font "'+fonts[afi].name+'"?')) return;
+  fonts.splice(afi,1);
+  afi=Math.min(afi,fonts.length-1);
+  buildCharGrid(); renderFontList(); selectFont(afi);
+}
+
+function cloneFont(){
+  if(afi<0) return;
+  var c=JSON.parse(JSON.stringify(fonts[afi]));
+  c.name+='_copy';
+  fonts.splice(afi+1,0,c);
+  renderFontList(); selectFont(afi+1);
+}
+
+// ---- CHAR GRID ----
+function buildCharGrid(){
+  var grid=document.getElementById('cgrid'); grid.innerHTML='';
+  var f=afi>=0?fonts[afi]:null;
+  for(var c=0x20;c<=0x7F;c++){
+    var cell=document.createElement('div');
+    cell.className='cc'+(c===aci?' act':'');
+    cell.id='cc'+c;
+    var ch=(c>=32&&c<=126)?String.fromCharCode(c):'·';
+    cell.textContent=ch;
+    cell.title='0x'+c.toString(16).toUpperCase()+' / '+c+" / '"+ch+"'";
+    if(f&&f.chars[c]&&f.chars[c].some(function(b){return b!==0;})) cell.classList.add('hasdata');
+    (function(ci){ cell.onclick=function(){ selectChar(ci); }; })(c);
+    grid.appendChild(cell);
+  }
+  // copy src select
+  var sel=document.getElementById('cpySrc'); sel.innerHTML='<option value="">-- char --</option>';
+  for(var c2=0x20;c2<=0x7F;c2++){
+    var ch2=(c2>=32&&c2<=126)?String.fromCharCode(c2):'·';
+    var o=document.createElement('option'); o.value=c2;
+    o.textContent='0x'+c2.toString(16).toUpperCase()+" '"+ch2+"'";
+    sel.appendChild(o);
+  }
+}
+
+function selectChar(c){
+  if(editingSnapshot!==null){ editingSnapshot=null; document.getElementById("edit-bar").classList.remove("active"); var gg=document.getElementById("pgrid");if(gg)gg.classList.remove("editing"); updateC(); }
+  var prev=document.getElementById('cc'+aci);
+  if(prev) prev.classList.remove('act');
+  aci=c;
+  var cur=document.getElementById('cc'+c);
+  if(cur){cur.classList.add('act');cur.scrollIntoView({block:'nearest'});}
+  renderEditor();
+  var ch=charName(c);
+  document.getElementById('sfch').textContent="'"+ch+"' "+h2(c);
+  document.getElementById('sbchar').textContent=h2(c)+" '"+ch+"'";
+}
+
+// ---- EDITOR ----
+function renderEditor(){
+  if(afi<0) return;
+  var f=fonts[afi]; var c=aci;
+  var B=bpc(f); var bperCol=Math.ceil(f.h/8);
+  getBytes(f,c);
+  var em=document.getElementById('emain'); em.innerHTML='';
+
+  // Info
+  var info=document.createElement('div'); info.id='einfo';
+  var ch=charName(c);
+  info.innerHTML="<span style='font-size:24px;font-family:Share Tech Mono,monospace'>"+esc("'"+ch+"'")+"</span>"
+    +" CHAR <span>"+h2(c)+"</span>/<span>"+c+"</span>"
+    +" | "+f.w+"x"+f.h+"px | <span>"+B+"</span> bytes"
+    +" &nbsp;<button id='show-in-file-btn' onclick='showInFile()'>&#128269; SHOW IN FILE</button>";
+  em.appendChild(info);
+
+  // Pixel size
+  var pxMax=Math.min(Math.floor(380/f.w), Math.floor(300/f.h));
+  var pxW=Math.max(10,Math.min(32,pxMax));
+  var pxH=pxW; // always square
+
+  // Col labels
+  var colLbls=document.createElement('div'); colLbls.id='pclbls';
+  colLbls.style.paddingLeft='24px';
+  for(var col=0;col<f.w;col++){
+    var lbl=document.createElement('div'); lbl.className='pxlbl';
+    lbl.style.width=pxW+'px'; lbl.textContent=col; colLbls.appendChild(lbl);
+  }
+  em.appendChild(colLbls);
+
+  // Wrap + row labels
+  var wrap=document.createElement('div'); wrap.id='pwrap';
+  var mind=document.createElement('div'); mind.id='modindicator';
+  mind.textContent=tool.toUpperCase()+' MODE'; wrap.appendChild(mind);
+
+  var rlbls=document.createElement('div'); rlbls.id='prlbls';
+  for(var row=0;row<f.h;row++){
+    var rlbl=document.createElement('div'); rlbl.className='pylbl';
+    rlbl.style.height=pxH+'px'; rlbl.textContent=row; rlbls.appendChild(rlbl);
+  }
+  wrap.appendChild(rlbls);
+
+  // Grid
+  var grid=document.createElement('div'); grid.id='pgrid';
+  grid.style.gridTemplateColumns='repeat('+f.w+','+pxW+'px)';
+  grid.style.gridTemplateRows='repeat('+f.h+','+pxH+'px)';
+
+  for(var row2=0;row2<f.h;row2++){
+    for(var col2=0;col2<f.w;col2++){
+      var px=document.createElement('div'); px.className='px';
+      px.dataset.r=row2; px.dataset.c=col2;
+      var bi=Math.floor(row2/8)*f.w+col2;
+      if((f.chars[c][bi]>>(row2%8))&1) px.classList.add('on');
+      (function(r,co){
+        px.addEventListener('mousedown',function(e){
+          mdown=true;
+          var wasOn=this.classList.contains('on');
+          mdval=(tool==='erase')?0:(tool==='toggle'?(wasOn?0:1):1);
+          doPixel(r,co,mdval); e.preventDefault();
+        });
+        px.addEventListener('mousemove',function(){
+          if(mdown) doPixel(r,co,mdval);
+        });
+      })(row2,col2);
+      grid.appendChild(px);
+    }
+  }
+  wrap.appendChild(grid);
+  em.appendChild(wrap);
+
+  // bdisp removed - hex inputs below handle editing
+
+  // Hex byte editor inline under the grid
+  var hxDiv=document.createElement('div');
+  hxDiv.id='hxbytes-editor';
+  hxDiv.style.cssText='margin-top:8px;width:100%;max-width:600px;';
+  em.appendChild(hxDiv);
+  renderHexInputs('hxbytes-editor');
+  updateSbar();
+  drawPreview();
+}
+
+function renderHexInputs(targetId){
+  if(afi<0) return;
+  var containerId = targetId || 'hxbytes';
+  var cont=document.getElementById(containerId);
+  if(!cont) return;
+  cont.innerHTML='';
+  var f=fonts[afi]; var c=aci; var bperCol=Math.ceil(f.h/8);
+  // Header label
+  var hdr=document.createElement('div');
+  hdr.style.cssText='font-family:Orbitron,monospace;font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;margin-top:4px;';
+  hdr.textContent='HEX BYTES';
+  cont.appendChild(hdr);
+  for(var byteRow=0;byteRow<bperCol;byteRow++){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;gap:3px;align-items:center;margin-bottom:3px;flex-wrap:wrap;';
+    var lbl=document.createElement('span');
+    lbl.style.cssText='font-size:11px;color:var(--text3);width:22px;text-align:right;flex-shrink:0;font-family:IBM Plex Mono,monospace;';
+    lbl.textContent='R'+byteRow+':'; row.appendChild(lbl);
+    for(var col=0;col<f.w;col++){
+      var idx=byteRow*f.w+col;
+      var inp=document.createElement('input'); inp.type='text'; inp.className='hxinp';
+      inp.maxLength=4; inp.dataset.i=idx;
+      inp.value='0x'+('00'+f.chars[c][idx].toString(16)).slice(-2);
+      inp.addEventListener('change',(function(di){
+        return function(){
+          var v=parseInt(this.value,16); if(isNaN(v))v=0; v=Math.max(0,Math.min(255,v));
+          setByteVal(di,v);
+        };
+      })(idx));
+      row.appendChild(inp);
+    }
+    cont.appendChild(row);
+  }
+}
+
+function doPixel(row,col,val){
+  if(afi<0) return;
+  if(row<0||row>=fonts[afi].h||col<0||col>=fonts[afi].w) return;
+  var f=fonts[afi]; var c=aci;
+  // snapshot BEFORE first change
+  if (editingSnapshot === null) {
+    editingSnapshot=f.chars[c]?f.chars[c].slice():null;
+    document.getElementById('edit-bar').classList.add('active');
+    var gg=document.getElementById('pgrid'); if(gg) gg.classList.add('editing');
+  }
+  var bi=Math.floor(row/8)*f.w+col;
+  if(val) f.chars[c][bi]|=(1<<(row%8));
+  else f.chars[c][bi]&=~(1<<(row%8));
+  // mask invisible bits in last byte-row
+  var lastBits=f.h%8;
+  if(lastBits!==0){
+    var mask=(1<<lastBits)-1;
+    var lastByteRow=Math.ceil(f.h/8)-1;
+    for(var col2=0;col2<f.w;col2++){
+      var lastBI=lastByteRow*f.w+col2;
+      if(lastBI<f.chars[c].length) f.chars[c][lastBI]&=mask;
+    }
+  }
+  // update pixel DOM
+  var grid=document.getElementById('pgrid');
+  if(grid){
+    var px=grid.querySelector('[data-r="'+row+'"][data-c="'+col+'"]');
+    if(px){ if(val)px.classList.add('on');else px.classList.remove('on'); }
+  }
+  refreshByteDisplay();
+  updateDot(c);
+}
+
+function refreshByteDisplay(){
+  if(afi<0) return;
+  var f=fonts[afi]; var c=aci; var B=bpc(f);
+  for(var i=0;i<B;i++){
+    document.querySelectorAll('.hxinp[data-i="'+i+'"]').forEach(function(inp){
+      inp.value='0x'+('00'+f.chars[c][i].toString(16)).slice(-2);
+    });
+  }
+  drawPreview();
+}
+function setByteVal(idx,val){
+  if(afi<0) return;
+  fonts[afi].chars[aci][idx]=val;
+  renderEditor(); updateC();
+}
+
+function promptByte(idx){
+  if(afi<0) return;
+  var f=fonts[afi]; var cur=h2(f.chars[aci][idx]);
+  var v=prompt('Byte['+idx+'] (hex):',cur); if(v===null)return;
+  var n=parseInt(v,16); if(!isNaN(n)) setByteVal(idx,Math.max(0,Math.min(255,n)));
+}
+
+function updateDot(c){
+  var cell=document.getElementById('cc'+c); if(!cell)return;
+  var f=fonts[afi];
+  if(f&&f.chars[c]&&f.chars[c].some(function(b){return b!==0;}))
+    cell.classList.add('hasdata');
+  else cell.classList.remove('hasdata');
+}
+
+// ---- TOOLS ----
+function setTool(t){
+  tool=t;
+  ['draw','erase','toggle'].forEach(function(id){
+    var el=document.getElementById('t'+id[0]);
+    if(el) el.classList.toggle('act',id===t);
+  });
+  var ind=document.getElementById('modindicator');
+  if(ind) ind.textContent=t.toUpperCase()+' MODE';
+  document.getElementById('sbtool').textContent=t.toUpperCase();
+}
+
+function getPixArr(){
+  var f=fonts[afi]; var rows=[];
+  for(var r=0;r<f.h;r++){
+    var row=[];
+    for(var c=0;c<f.w;c++) row.push(getBit(f,aci,r,c));
+    rows.push(row);
+  }
+  return rows;
+}
+
+function applyPixArr(rows){
+  var f=fonts[afi]; var B=bpc(f);
+  f.chars[aci]=new Array(B).fill(0);
+  for(var r=0;r<rows.length&&r<f.h;r++)
+    for(var c=0;c<rows[r].length&&c<f.w;c++)
+      if(rows[r][c]) setBit(f,aci,r,c,1);
+  renderEditor(); updateC();
+}
+
+function opClear(){
+  if(afi<0)return;
+  fonts[afi].chars[aci]=new Array(bpc(fonts[afi])).fill(0);
+  renderEditor(); updateC(); updateDot(aci);
+}
+
+function opFill(){
+  if(afi<0)return;
+  var f=fonts[afi]; var B=bpc(f); var bperCol=Math.ceil(f.h/8);
+  var lastBits=f.h%8||8; var mask=(1<<lastBits)-1;
+  f.chars[aci]=new Array(B).fill(0xFF);
+  for(var col=0;col<f.w;col++) f.chars[aci][col*bperCol+bperCol-1]=mask;
+  renderEditor(); updateC();
+}
+
+function opInvert(){
+  if(afi<0)return;
+  var rows=getPixArr();
+  for(var r=0;r<rows.length;r++) for(var c=0;c<rows[r].length;c++) rows[r][c]=rows[r][c]?0:1;
+  applyPixArr(rows);
+}
+
+function opShift(dir){
+  if(afi<0)return;
+  var rows=getPixArr(); var f=fonts[afi];
+  if(dir==='L'){ for(var r=0;r<rows.length;r++){rows[r].shift();rows[r].push(0);} }
+  else if(dir==='R'){ for(var r=0;r<rows.length;r++){rows[r].pop();rows[r].unshift(0);} }
+  else if(dir==='U'){ rows.shift();rows.push(new Array(f.w).fill(0)); }
+  else if(dir==='D'){ rows.pop();rows.unshift(new Array(f.w).fill(0)); }
+  applyPixArr(rows);
+}
+
+function opMirror(axis){
+  if(afi<0)return;
+  var rows=getPixArr();
+  if(axis==='H'){ for(var r=0;r<rows.length;r++) rows[r].reverse(); }
+  else{ rows.reverse(); }
+  applyPixArr(rows);
+}
+
+// ---- TEMPLATES ----
+function applyTpl(type){
+  if(afi<0)return;
+  var f=fonts[afi]; var W=f.w,H=f.h;
+  var rows=[];
+  for(var r=0;r<H;r++){rows.push(new Array(W).fill(0));}
+  if(type==='box'){
+    for(var r=0;r<H;r++) for(var c=0;c<W;c++)
+      if(r===0||r===H-1||c===0||c===W-1) rows[r][c]=1;
+  } else if(type==='cross'){
+    var mr=Math.floor(H/2),mc=Math.floor(W/2);
+    for(var r=0;r<H;r++) rows[r][mc]=1;
+    for(var c=0;c<W;c++) rows[mr][c]=1;
+  } else if(type==='diag'){
+    for(var r=0;r<H;r++){var c=Math.round(r*(W-1)/(H-1));if(c<W)rows[r][c]=1;}
+  } else if(type==='circle'){
+    var cx=W/2-.5,cy=H/2-.5,rx=W/2-.5,ry=H/2-.5;
+    for(var r=0;r<H;r++) for(var c=0;c<W;c++){
+      var dx=(c-cx)/rx,dy=(r-cy)/ry,d=Math.sqrt(dx*dx+dy*dy);
+      if(d>=.75&&d<=1.15) rows[r][c]=1;
+    }
+  } else if(type==='check'){
+    for(var r=0;r<H;r++) for(var c=0;c<W;c++) rows[r][c]=(r+c)%2;
+  } else if(type==='vlines'){
+    for(var r=0;r<H;r++) for(var c=0;c<W;c++) rows[r][c]=c%2===0?1:0;
+  } else if(type==='hlines'){
+    for(var r=0;r<H;r++) for(var c=0;c<W;c++) rows[r][c]=r%2===0?1:0;
+  }
+  applyPixArr(rows);
+}
+
+// ---- COPY ----
+function copyChar(){
+  if(afi<0)return;
+  var src=parseInt(document.getElementById('cpySrc').value); if(isNaN(src))return;
+  var f=fonts[afi];
+  if(f.chars[src]){ f.chars[aci]=f.chars[src].slice(); renderEditor();updateC();updateDot(aci); }
+}
+
+function copyFromFont(){
+  var fi=parseInt(document.getElementById('cpyFont').value);
+  var ci=parseInt(document.getElementById('cpySrc').value);
+  if(isNaN(fi)||isNaN(ci)||fi<0||fi>=fonts.length)return;
+  var sf=fonts[fi]; var df=fonts[afi];
+  if(!sf.chars[ci])return;
+  var sb=sf.chars[ci].slice(); var db=bpc(df);
+  var nb=new Array(db).fill(0);
+  for(var i=0;i<Math.min(sb.length,db);i++) nb[i]=sb[i];
+  df.chars[aci]=nb;
+  renderEditor(); updateC(); updateDot(aci);
+}
+
+// ---- MODAL ----
+function showModal(){ document.getElementById('modov').classList.add('show'); setTimeout(function(){document.getElementById('mn').focus();},50); }
+function closeModal(){ document.getElementById('modov').classList.remove('show'); }
+
+function confirmFont(){
+  var name=document.getElementById('mn').value||'new_font';
+  var w=parseInt(document.getElementById('mw').value)||5;
+  var h=parseInt(document.getElementById('mh').value)||7;
+  var s=parseInt(document.getElementById('ms').value); if(isNaN(s))s=32;
+  var b=w*Math.ceil(h/8);
+  var f={name:name,w:w,h:h,start:s,chars:{}};
+  for(var c=s;c<=0x7F;c++) f.chars[c]=new Array(b).fill(0);
+  fonts.push(f); closeModal();
+  afi=fonts.length-1;
+  renderFontList(); buildCharGrid(); selectFont(afi);
+}
+
+document.getElementById('modov').addEventListener('click',function(e){ if(e.target===this)closeModal(); });
+
+// ---- C CODE ----
+function sp(cls,txt){ return '<span class="'+cls+'">'+txt+'</span>'; }
+
+
+function copyFontByIdx(fi){
+  if(fi<0||fi>=fonts.length) return;
+  var txt=buildSingleFontC(fi);
+  // Try clipboard API, fallback to execCommand
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).catch(function(){
+      fallbackCopy(txt);
+    });
+  } else {
+    fallbackCopy(txt);
+  }
+  // Visual feedback: find the button with data-fi=fi and flash it
+  var btns=document.querySelectorAll('.cfont-copybtn[data-fi="'+fi+'"]');
+  btns.forEach(function(btn){
+    var origHTML=btn.innerHTML;
+    btn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><polyline points="2,8 6,13 14,4" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> COPIED!';
+    btn.classList.add('copied');
+    setTimeout(function(){ btn.innerHTML=origHTML; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+function fallbackCopy(txt){
+  var ta=document.createElement('textarea');
+  ta.value=txt; ta.style.cssText='position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+}
+
+function buildSingleFontC(fi){
+  if(fi<0||fi>=fonts.length) return '';
+  var f=fonts[fi]; var B=bpc(f);
+  var chars=Object.keys(f.chars).map(Number).sort(function(a,b){return a-b;});
+  var total=4+chars.length*B;
+  var out='/* '+f.name+' -- '+f.w+'x'+f.h+'px -- '+B+'B/char -- total:'+total+'B */\n';
+  out+='const uint8_t '+f.name+'[] =\n{\n';
+  out+='    0x00, '+h2(f.w)+', '+h2(f.h)+', '+h2(f.start)+',\n';
+  for(var ci=0;ci<chars.length;ci++){
+    var c=chars[ci];
+    var bytes=f.chars[c]||new Array(B).fill(0);
+    var cn=charName(c);
+    out+='    '+bytes.map(h2).join(', ')+', // char ('+h2(c)+'/'+c+')\n';
+  }
+  out+='}; ';
+  return out;
+}
+
+
+function showInFile(){
+  var area=document.getElementById('ccarea');
+  if(!area) return;
+  var target=area.querySelector('[data-char="'+afi+'-'+aci+'"]');
+  if(target){
+    target.scrollIntoView({block:'center',behavior:'smooth'});
+    target.classList.remove('char-highlight-pulse');
+    void target.offsetWidth;
+    target.classList.add('char-highlight-pulse');
+  } else {
+    scrollToFont(afi);
+  }
+}
+
+
+function scrollToFont(fi){
+  var area=document.getElementById('ccarea');
+  if(!area) return;
+  var target=area.querySelector('[data-font="'+fi+'"]');
+  if(target){
+    target.scrollIntoView({block:'start',behavior:'smooth'});
+  }
+}
+
+function updateC(cb){
+  var area=document.getElementById('ccarea');
+  area.innerHTML=buildC(true);
+  area.classList.add('flash');
+  setTimeout(function(){area.classList.remove('flash');},300);
+  if(cb) requestAnimationFrame(function(){ requestAnimationFrame(cb); });
+}
+
+function buildC(highlight){
+  var out='';
+  for(var fi=0;fi<fonts.length;fi++){
+    var f=fonts[fi]; var B=bpc(f);
+    var chars=Object.keys(f.chars).map(Number).sort(function(a,b){return a-b;});
+    var total=4+chars.length*B;
+    var comment='/* '+esc(f.name)+' -- '+f.w+'x'+f.h+'px -- '+B+'B/char -- total:'+total+'B */\n';
+    if(highlight) out+='<div data-font="'+fi+'" style="height:0;overflow:hidden;display:block"></div>'+sp('ccm',comment);
+    else out+='/* '+f.name+' -- '+f.w+'x'+f.h+'px -- '+B+'B/char -- total:'+total+'B */\n';
+
+    if(highlight){
+      var copyBtn='<button class="cfont-copybtn" data-fi="'+fi+'" onclick="copyFontByIdx('+fi+')" title="Copy '+esc(f.name)+' to clipboard"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="9" height="10" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M3 3V2a1 1 0 011-1h7a1 1 0 011 1v1" stroke="currentColor" stroke-width="1.5"/></svg> COPY</button>\n';
+      out+=copyBtn;
+      out+=sp('ckw','const ')+sp('cty','uint8_t ')+sp('cnm',esc(f.name))+sp('cpu','[] =\n{\n');
+      out+='    ';
+      out+=sp('cnu','0x00')+sp('cpu',', ');
+      out+=sp('cnu',h2(f.w))+sp('cpu',', ');
+      out+=sp('cnu',h2(f.h))+sp('cpu',', ');
+      out+=sp('cnu',h2(f.start))+sp('cpu',',');
+      out+=sp('ccm','  // type=0, width='+f.w+', height='+f.h+', start='+f.start+'\n');
+    } else {
+      out+='const uint8_t '+f.name+'[] =\n{\n';
+      out+='    0x00, '+h2(f.w)+', '+h2(f.h)+', '+h2(f.start)+',\n';
+    }
+
+    for(var ci=0;ci<chars.length;ci++){
+      var c=chars[ci];
+      var bytes=f.chars[c]||new Array(B).fill(0);
+      var ch=charName(c);
+      var chEsc=esc("'"+ch+"'");
+      if(highlight){
+        var isActive=(fi===afi&&c===aci);
+        var lineOpen='<span data-char="'+fi+'-'+c+'" style="display:block">';
+        out+=lineOpen;
+        out+='    ';
+        for(var bi=0;bi<bytes.length;bi++){
+          out+=sp('cnu',h2(bytes[bi]));
+          if(bi<bytes.length-1) out+=sp('cpu',', ');
+        }
+        out+=sp('cpu',',');
+        out+=sp('ccm',' // char '+chEsc+' ('+h2(c)+'/'+c+')\n')+'</span>';
+      } else {
+        out+='    '+bytes.map(h2).join(', ')+', // char '+chEsc+' ('+h2(c)+'/'+c+')\n';
+      }
+    }
+    if(highlight) out+=sp('cpu','};');
+    else out+='};';
+    if(fi<fonts.length-1) out+='\n\n';
+    else out+='\n';
+  }
+  return out;
+}
+
+function getPlainC(){ return buildC(false).replace(/<[^>]+>/g,''); }
+
+function copyC(){
+  navigator.clipboard.writeText(getPlainC()).then(function(){
+    var btns=document.querySelectorAll('.btn');
+    // find the copy buttons
+  });
+  // simpler: just alert
+  var ta=document.createElement('textarea');
+  ta.value=getPlainC(); ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{document.execCommand('copy');}catch(e){}
+  document.body.removeChild(ta);
+  var evBtn=event&&event.target;
+  if(evBtn){var orig=evBtn.textContent;evBtn.textContent='COPIED!';evBtn.style.color='var(--green)';setTimeout(function(){evBtn.textContent=orig;evBtn.style.color='';},1500);}
+}
+
+function doExport(){
+  var txt=getPlainC();
+  var blob=new Blob([txt],{type:'text/plain'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='iot_fonts.c'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function doImport(){ document.getElementById('imp').click(); }
+
+function handleImport(e){
+  var file=e.target.files[0]; if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){ parseImport(ev.target.result); };
+  reader.readAsText(file); e.target.value='';
+}
+
+function stripLineComments(s){
+  // Remove // ... end-of-line comments
+  return s.replace(/\/\/[^\n]*/g,'');
+}
+function parseImport(text){
+  var re=/const\s+uint8_t\s+(\w+)\s*\[\s*\]\s*=\s*\{([^}]+)\}/g;
+  var match; var cnt=0;
+  while((match=re.exec(text))!==null){
+    var name=match[1];
+    var body=stripLineComments(match[2]);
+    var bytes=[];
+    var br=/0[xX]([0-9a-fA-F]{1,2})(?![0-9a-fA-F])/g; var bm;
+    while((bm=br.exec(body))!==null) bytes.push(parseInt(bm[1],16));
+    if(bytes.length<4) continue;
+    var w=bytes[1],h=bytes[2],start=bytes[3],b=w*Math.ceil(h/8);
+    var f={name:name,w:w,h:h,start:start,chars:{}}; var off=4,c=start;
+    while(off+b<=bytes.length){ f.chars[c]=bytes.slice(off,off+b); off+=b; c++; }
+    var ex=-1; for(var i=0;i<fonts.length;i++){if(fonts[i].name===name){ex=i;break;}}
+    maskFontBits(f);
+    if(ex>=0) fonts[ex]=f; else fonts.push(f);
+    cnt++;
+  }
+  if(cnt>0){ afi=fonts.length-1; renderFontList(); buildCharGrid(); selectFont(afi); alert('Imported '+cnt+' font(s).'); }
+  else alert('No valid font arrays found.');
+}
+
+// ---- PREVIEW ----
+function drawPreview(){
+  if(afi<0)return;
+  var f=fonts[afi];
+  var text=document.getElementById('previnp').value;
+  var canv=document.getElementById('prevcanv'); canv.innerHTML='';
+  var maxH=Math.floor(window.innerHeight*0.09);
+  var S=Math.max(1,Math.min(4,Math.floor(maxH/f.h)));
+  var bperCol=Math.ceil(f.h/8);
+  for(var ti=0;ti<text.length;ti++){
+    var code=text.charCodeAt(ti);
+    var bytes=f.chars[code]||new Array(bpc(f)).fill(0);
+    var cv=document.createElement('canvas');
+    cv.width=f.w*S; cv.height=f.h*S; cv.style.imageRendering='pixelated';
+    var ctx=cv.getContext('2d');
+    ctx.fillStyle='#0a0c0f'; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.fillStyle='#00d4ff';
+    for(var col=0;col<f.w;col++) for(var row=0;row<f.h;row++){
+      var bi=Math.floor(row/8)*f.w+col;
+      if((bytes[bi]>>(row%8))&1) ctx.fillRect(col*S,row*S,S,S);
+    }
+    canv.appendChild(cv);
+  }
+}
+
+// ---- STATUSBAR ----
+function updateSbar(){
+  if(afi<0)return;
+  var f=fonts[afi];
+  document.getElementById('sbfont').textContent=f.name;
+  document.getElementById('sbsize').textContent=f.w+'x'+f.h;
+  var total=Object.keys(f.chars).length*bpc(f)+4;
+  document.getElementById('sbbytes').textContent=total+' bytes';
+}
+
+// ---- KEYBOARD ----
+document.addEventListener('mouseup',function(){mdown=false;});
+
+document.addEventListener('keydown',function(e){
+  var tag=e.target.tagName;
+  if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA')return;
+  var k=e.key;
+  if(k==='ArrowRight'&&!e.shiftKey){e.preventDefault();if(aci<0x7F)selectChar(aci+1);}
+  else if(k==='ArrowLeft'&&!e.shiftKey){e.preventDefault();if(aci>0x20)selectChar(aci-1);}
+  else if(k==='ArrowUp'&&!e.shiftKey){e.preventDefault();if(aci>=0x40)selectChar(aci-0x20);}
+  else if(k==='ArrowDown'&&!e.shiftKey){e.preventDefault();if(aci+0x20<=0x7F)selectChar(aci+0x20);}
+  else if(k==='d'||k==='D')setTool('draw');
+  else if(k==='e'||k==='E')setTool('erase');
+  else if(k==='t'||k==='T')setTool('toggle');
+  else if(k==='i'||k==='I')opInvert();
+  else if(k==='Delete'||k==='Backspace'){e.preventDefault();opClear();}
+  else if(k==='ArrowLeft'&&e.shiftKey){e.preventDefault();opShift('L');}
+  else if(k==='ArrowRight'&&e.shiftKey){e.preventDefault();opShift('R');}
+  else if(k==='ArrowUp'&&e.shiftKey){e.preventDefault();opShift('U');}
+  else if(k==='ArrowDown'&&e.shiftKey){e.preventDefault();opShift('D');}
+});
+
+init();
+
+
+
+
+// ── Resizable divider ──
+(function(){
+  var divider = document.getElementById('divider');
+  if (!divider) return;
+
+  var isDragging = false;
+  var startX = 0;
+  var startRW = 0;   // right panel starting width
+  var startCW = 0;   // center panel starting width
+
+  function getRpanel(){ return document.getElementById('rpanel'); }
+  function getCpanel(){ return document.getElementById('cpanel'); }
+
+  divider.addEventListener('mousedown', function(e){
+    var rp = getRpanel(); var cp = getCpanel();
+    if (!rp || !cp) return;
+    isDragging = true;
+    startX  = e.clientX;
+    startRW = rp.getBoundingClientRect().width;
+    startCW = cp.getBoundingClientRect().width;
+    divider.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e){
+    if (!isDragging) return;
+    var rp = getRpanel(); var cp = getCpanel();
+    if (!rp || !cp) return;
+    var delta = startX - e.clientX;  // drag left → right panel wider
+    var newRW = Math.max(200, Math.min(1000, startRW + delta));
+    var newCW = Math.max(320, startCW - delta);
+    rp.style.width = newRW + 'px';
+    rp.style.flexShrink = '0';
+    // cpanel is flex:1 so it auto-adjusts, but set min-width to allow shrinking
+    cp.style.minWidth = Math.max(320, newCW) + 'px';
+  });
+
+  document.addEventListener('mouseup', function(){
+    if (!isDragging) return;
+    isDragging = false;
+    divider.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+
+  // Touch support
+  divider.addEventListener('touchstart', function(e){
+    var rp = getRpanel(); if (!rp) return;
+    isDragging = true;
+    startX = e.touches[0].clientX;
+    startRW = rp.getBoundingClientRect().width;
+    divider.classList.add('dragging');
+    e.preventDefault();
+  }, {passive:false});
+
+  document.addEventListener('touchmove', function(e){
+    if (!isDragging) return;
+    var rp = getRpanel(); if (!rp) return;
+    var delta = startX - e.touches[0].clientX;
+    var newRW = Math.max(200, Math.min(1000, startRW + delta));
+    rp.style.width = newRW + 'px';
+  }, {passive:false});
+
+  document.addEventListener('touchend', function(){
+    isDragging = false;
+    divider.classList.remove('dragging');
+  });
+})();
+</script>
+</body>
+</html>
