@@ -66,8 +66,8 @@ Nagłówek: 0x0A, 0x00,  // szerokość = 10
           0x10, 0x00,  // wysokość  = 16
 
 Układ danych (20 bajtów):
-  [R0K0][R0K1]...[R0K9]   ← wiersze 0–7,  wszystkie 10 kolumn
-  [R1K0][R1K1]...[R1K9]   ← wiersze 8–15, wszystkie 10 kolumn
+  [R0C0][R0C1]...[R0C9]   ← wiersze 0–7,  wszystkie 10 kolumn
+  [R1C0][R1C1]...[R1C9]   ← wiersze 8–15, wszystkie 10 kolumn
 ```
 
 ## Deklaracja C
