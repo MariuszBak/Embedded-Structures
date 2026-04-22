@@ -63,7 +63,7 @@ Siatka pikseli (wiersz 0 = góra):
 ```
 bajty/znak = 8 × ceil(16/8) = 16
 
-Układ: [R0K0][R0K1]...[R0K7][R1K0][R1K1]...[R1K7]
+Układ: [R0C0][R0C1]...[R0C7][R1C0][R1C1]...[R1C7]
         ↑ wiersze 0–7 dla wszystkich kolumn
                               ↑ wiersze 8–15 dla wszystkich kolumn
 ```
